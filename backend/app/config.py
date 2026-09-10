@@ -44,6 +44,11 @@ class Settings(BaseSettings):
     # finish_reason "stop" — a silent truncation that looks like a model failure.
     answer_max_tokens: int = 2500
 
+    # How many chunks are put in front of the model. Held constant across
+    # evaluation stages: changing it alongside the chunking strategy would make
+    # neither measurable.
+    retrieval_k: int = 8
+
     request_timeout_seconds: float = 60.0
 
     # Free-tier token-per-minute limits are reached easily by a full evaluation

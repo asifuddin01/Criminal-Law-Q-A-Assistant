@@ -35,3 +35,53 @@ class MetaResponse(BaseModel):
     provider: ProviderInfo
     disclaimer: str
     source_attribution: str
+
+
+class AskRequest(BaseModel):
+    question: str = Field(min_length=3, max_length=2000)
+    language: str = Field(
+        default="en", description="ISO code of the question's language; 'bn' for Bangla"
+    )
+
+
+class CitationOut(BaseModel):
+    section: str = Field(description="Section number, e.g. '54' or '561A'")
+    marginal_note: str = ""
+    part: str | None = None
+    chapter: str | None = None
+    quote: str = Field(
+        default="",
+        description="Verbatim excerpt, empty when no quotation could be verified",
+    )
+    quote_verified: bool = Field(
+        description="True only when the excerpt was found in the stored source text"
+    )
+    source_url: str
+
+
+class DroppedCitation(BaseModel):
+    section: str
+    reason: str
+    quote: str | None = None
+
+
+class AskResponse(BaseModel):
+    """An answer, or a refusal, with everything needed to check it.
+
+    `question_text` is echoed back because a question may have arrived as speech or
+    an image and been converted to text. A conversion error otherwise becomes a
+    retrieval failure with no visible cause.
+    """
+
+    question_text: str
+    answer: str
+    refused: bool
+    reason: str = ""
+    citations: list[CitationOut] = Field(default_factory=list)
+    dropped_citations: list[DroppedCitation] = Field(
+        default_factory=list,
+        description="Citations the validator could not substantiate, and why",
+    )
+    retrieved_sections: list[str] = Field(default_factory=list)
+    model: str = ""
+    disclaimer: str

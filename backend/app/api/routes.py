@@ -2,13 +2,23 @@
 
 from __future__ import annotations
 
-from fastapi import APIRouter, Query
+from fastapi import APIRouter, HTTPException, Query
 
 from app import __version__
 from app.config import get_settings
 from app.legal import DISCLAIMER, SOURCE_ATTRIBUTION
-from app.llm import get_provider
-from app.schemas import HealthResponse, MetaResponse, ProviderInfo
+from app.llm import ProviderUnavailable, get_provider
+from app.qa.validation import validate
+from app.schemas import (
+    AskRequest,
+    AskResponse,
+    CitationOut,
+    DroppedCitation,
+    HealthResponse,
+    MetaResponse,
+    ProviderInfo,
+)
+from app.services import CorpusUnavailable, get_corpus, get_qa
 
 router = APIRouter()
 
@@ -59,4 +69,59 @@ async def meta(
         provider=info,
         disclaimer=DISCLAIMER,
         source_attribution=SOURCE_ATTRIBUTION,
+    )
+
+
+@router.post("/ask", response_model=AskResponse, tags=["qa"])
+async def ask(request: AskRequest) -> AskResponse:
+    """Answer a question from retrieved statutory text.
+
+    The answer passes through citation validation before it is returned. Citations
+    the validator cannot substantiate are removed and reported in
+    `dropped_citations` rather than silently dropped, and an answer left with
+    nothing substantiated behind it becomes a refusal.
+    """
+    try:
+        corpus = get_corpus()
+        system = get_qa()
+    except CorpusUnavailable as exc:
+        raise HTTPException(status_code=503, detail=str(exc)) from exc
+
+    try:
+        answer = await system.answer(request.question)
+    except ProviderUnavailable as exc:
+        raise HTTPException(
+            status_code=502, detail=f"language model unavailable: {exc}"
+        ) from exc
+
+    if answer.error:
+        raise HTTPException(status_code=502, detail=answer.error)
+
+    result = validate(answer, corpus, retrieved_sections=answer.retrieved_sections)
+
+    return AskResponse(
+        question_text=request.question,
+        answer=(
+            answer.text
+            if not result.refused
+            else (answer.text or result.reason)
+        ),
+        refused=result.refused,
+        reason=result.reason,
+        citations=[
+            CitationOut(
+                section=c.section,
+                marginal_note=c.marginal_note,
+                part=c.part,
+                chapter=c.chapter,
+                quote=c.quote,
+                quote_verified=c.quote_verified,
+                source_url=c.source_url,
+            )
+            for c in result.citations
+        ],
+        dropped_citations=[DroppedCitation(**d) for d in result.dropped],
+        retrieved_sections=answer.retrieved_sections,
+        model=answer.model,
+        disclaimer=DISCLAIMER,
     )
