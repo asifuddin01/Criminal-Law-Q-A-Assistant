@@ -1,0 +1,90 @@
+# AI Usage
+
+This project was developed with AI assistance. This document records which tools were used,
+what was delegated to them, how the output was reviewed, and where AI suggestions were
+rejected or corrected.
+
+All work here has been reviewed and is understood well enough to explain in detail.
+
+## Tools
+
+| Tool | Model | Use |
+|---|---|---|
+| Claude Code | Claude Opus 5 | Source survey, architecture decisions, implementation, documentation |
+
+## Provenance in the Git history
+
+Commits produced with AI assistance carry a `Co-Authored-By: Claude Opus 5` trailer. This is
+not decoration — it means the commit history itself is an accurate record of where assistance
+was used, and can be audited with:
+
+```bash
+git log --format='%h %s' --grep='Co-Authored-By: Claude' 
+```
+
+## What was delegated
+
+**Source investigation.** Inspecting `bdlaws.minlaw.gov.bd` to establish how Bangladesh
+legislation is published — URL structure, section boundaries, hierarchy markers, and how
+amendments are represented. Findings in [DATA_SOURCE.md](DATA_SOURCE.md).
+
+**Architecture decisions.** Drafting the ADRs in [docs/adr/](docs/adr/). The decisions were
+reviewed and accepted individually; one was subsequently reversed (see below).
+
+**Implementation.** Backend scaffolding, the provider abstraction, tests.
+
+**Documentation.** This file, the README, the experiment log structure.
+
+## Review process
+
+Every generated file was read before committing. Code is not committed unless its tests
+pass — the backend scaffold was committed only after `pytest` ran green on Python 3.12.13.
+
+Claims about the source corpus are not accepted from the model on assertion. Every structural
+claim in [DATA_SOURCE.md](DATA_SOURCE.md) was established by direct inspection of the live
+site and is stated with the evidence that produced it, including the specific URLs examined.
+Where a number was not verified — the exact count of legal sections, early on — it was
+recorded as unverified rather than estimated.
+
+## Rejected and corrected suggestions
+
+This section is the point of the document. It is appended to as the project continues.
+
+### 1. Per-section crawl with title-based reassembly — rejected on evidence
+
+**What the assistant proposed.** ADR 0002: a two-pass crawl of all 594 per-section URLs,
+extracting section numbers from each page's `<title>` element and reassembling fragmented
+pages into whole sections, with continuation pages inheriting the number of the most recent
+numbered page in table-of-contents order.
+
+**Why it was wrong.** Not incorrect on its own terms — the reassembly logic would have
+worked. It solved a problem that did not need to exist. The assistant surveyed the
+per-section endpoints, found them fragmented, and designed around the fragmentation instead
+of checking whether a better endpoint existed.
+
+**How it was caught.** By being pointed at `act-details-75.html` directly, which turned out
+to serve the entire act as a single document with section grouping intact.
+
+**Correction.** ADR 0002 superseded by [ADR 0005](docs/adr/0005-ingest-from-single-document-print-view.md).
+Ingestion now uses one request rather than 594, and the number-inheritance heuristic was
+deleted before it was ever written. ADR 0002 was marked superseded rather than rewritten, so
+the reversal stays visible.
+
+**Lesson recorded.** Survey the full surface of a data source before designing around any
+part of it. An AI assistant investigating a source will design confidently around whatever
+it happened to look at first, and the resulting design will look well-reasoned because it
+is well-reasoned — about the wrong subset.
+
+### 2. Marginal-note fragmentation — caught before it reached code
+
+**What nearly happened.** The obvious ingestion design, and the one an assistant produces
+without investigation, is one URL to one document to one chunk. Against this source that
+silently shreds sections and produces citations naming a marginal note with no section
+number.
+
+**How it was caught.** Investigating the source structure before writing the ingestion
+pipeline, rather than writing the pipeline and debugging its output.
+
+**Why it is recorded here.** It is the failure mode this project is most exposed to. A
+citation-grounded legal assistant that cites confidently and wrongly is worse than one that
+declines to answer, and this class of bug produces exactly that.
