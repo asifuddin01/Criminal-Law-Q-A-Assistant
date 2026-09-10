@@ -25,13 +25,18 @@ from app.evaluation.dataset import GoldQuestion, load_gold
 from app.evaluation.metrics import QuestionScore, aggregate, score_question
 from app.ingest import cache_path, parse_act
 from app.llm import get_provider
-from app.qa import Answer, BaselineLLM, Citation
+from app.qa import Answer, BaselineLLM, Citation, RetrievalQA
+from app.retrieval import VectorIndex
 
 REPO_ROOT = pathlib.Path(__file__).resolve().parents[3]
 RUNS_DIR = REPO_ROOT / "eval" / "runs"
 CACHE_DIR = REPO_ROOT / "data" / "cache" / "llm"
 
-STAGES = {1: ("baseline-llm-only", "LLM only, no retrieval")}
+STAGES = {
+    1: ("baseline-llm-only", "LLM only, no retrieval", None),
+    2: ("rag-naive-chunks", "Dense retrieval, naive fixed-size chunks", "naive_fixed_size"),
+    3: ("rag-legal-chunks", "Dense retrieval, legal-aware chunks", "legal_aware"),
+}
 
 
 def _cache_key(system: str, model: str, question: str) -> str:
@@ -51,6 +56,7 @@ def _read_cache(key: str) -> Answer | None:
         model=data["model"],
         raw=data["raw"],
         error=data.get("error"),
+        retrieved_sections=data.get("retrieved_sections", []),
     )
 
 
@@ -101,10 +107,22 @@ async def run_stage(
         questions = questions[:limit]
 
     provider = get_provider()
-    system = BaselineLLM(provider)
-    model = getattr(provider, "_chat_model", "unknown")
+    name, description, strategy = STAGES[stage]
 
-    name, description = STAGES[stage]
+    if strategy is None:
+        system = BaselineLLM(provider)
+    else:
+        if not VectorIndex.exists(strategy):
+            print(
+                f"index {strategy!r} not built; run: "
+                f"python -m app.retrieval.build --strategy {strategy}"
+            )
+            return 2
+        index = VectorIndex.load(strategy)
+        print(f"index {strategy}: {len(index)} chunks, {index.model_name}")
+        system = RetrievalQA(provider, index, name=name)
+
+    model = getattr(provider, "_chat_model", "unknown")
     print(f"stage {stage}: {name} — {description}")
     print(f"provider {provider.name} / {model} · {len(questions)} questions\n")
 
@@ -144,6 +162,7 @@ async def run_stage(
                         "gold_sections": question.gold_sections,
                         "answer_text": answer.text[:600],
                         "cited": [c.section for c in answer.citations],
+                        "retrieved_sections": answer.retrieved_sections,
                     },
                     ensure_ascii=False,
                 )
@@ -171,6 +190,7 @@ def _report(summary: dict) -> None:
     print(f"{'citations made':<32}{summary['citations_made']}")
     print()
     for label, key in (
+        ("retrieval recall", "retrieval_recall"),
         ("citation existence", "citation_existence"),
         ("hallucinated citation rate", "hallucinated_citation_rate"),
         ("citation precision", "citation_precision"),

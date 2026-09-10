@@ -59,3 +59,7 @@ class Answer:
     model: str = ""
     raw: str = ""
     error: str | None = None
+    # Sections retrieval put in front of the model, in rank order. Recorded so that
+    # a retrieval miss can be told apart from a model that ignored what it was given
+    # — the two call for opposite fixes.
+    retrieved_sections: list[str] = field(default_factory=list)

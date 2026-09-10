@@ -64,8 +64,8 @@ covers every input path.
 | Frontend | Next.js |
 | Generation | Groq `openai/gpt-oss-120b`, Ollama `qwen2.5:3b-instruct` fallback |
 | Speech | Groq `whisper-large-v3` |
-| Embeddings | `multilingual-e5-small` |
-| Retrieval | BM25 + dense, reciprocal rank fusion |
+| Embeddings | `paraphrase-multilingual-MiniLM-L12-v2` (ONNX) |
+| Retrieval | Dense (exact, in-process); BM25 + RRF at stage 4 |
 
 Groq and Ollama both expose an OpenAI-compatible API, so one client implementation serves
 both, and one credential covers generation and transcription. Providers declare

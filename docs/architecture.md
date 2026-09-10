@@ -173,9 +173,9 @@ re-embeds only sections whose hash changed.
 | Backend | FastAPI, Python 3.12 | Async, typed, first-class OpenAPI. Alternatives examined in [ADR 0008](adr/0008-web-framework-choice.md) |
 | Frontend | Next.js | Streaming answers, straightforward deploy |
 | Generation | Groq free tier, Ollama fallback | One key covers text, speech and vision; local path keeps the demo alive offline. [ADR 0003](adr/0003-llm-provider-strategy.md) |
-| Embeddings | multilingual-e5-small | Bangla questions against English text |
+| Embeddings | multilingual MiniLM (ONNX) | Bangla questions against English text. [ADR 0010](adr/0010-embedding-model.md) |
 | Retrieval | BM25 + dense, RRF fusion | Statutory language is precise; lexical match on section numbers and defined terms matters as much as semantics |
-| Index | Qdrant | Small corpus, simple deploy |
+| Index | Exact in-process NumPy search | Corpus is thousands of chunks, not millions; exact search removes a confound from the chunking experiments. [ADR 0009](adr/0009-exact-in-process-vector-search.md) |
 
 Retrieval choices are provisional and settled by measurement, not assertion — see
 [EXPERIMENTS.md](../EXPERIMENTS.md).

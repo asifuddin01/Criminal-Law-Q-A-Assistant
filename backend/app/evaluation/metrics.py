@@ -38,6 +38,9 @@ class QuestionScore:
     quotes_checked: int = 0
     quotes_valid: int = 0
 
+    retrieved: int = 0
+    retrieval_hit: bool = False
+
     hallucinated_sections: list[str] = field(default_factory=list)
     unsupported_quotes: list[str] = field(default_factory=list)
 
@@ -75,6 +78,10 @@ def score_question(question: GoldQuestion, answer: Answer, corpus) -> QuestionSc
         return score
 
     gold = {number for _, number in question.targets}
+
+    score.retrieved = len(answer.retrieved_sections)
+    if gold:
+        score.retrieval_hit = bool(gold & set(answer.retrieved_sections))
 
     for citation in answer.citations:
         number = citation.normalized
@@ -157,6 +164,13 @@ def aggregate(scores: list[QuestionScore]) -> dict:
         "answer_hit_rate": _ratio(
             sum(1 for s in answerable if s.has_correct_citation), len(answerable)
         ),
+        # Recall is defined over answerable questions only: an unanswerable
+        # question has no gold section for retrieval to find.
+        "retrieval_recall": _ratio(
+            sum(1 for s in answerable if s.retrieval_hit), len(answerable)
+        )
+        if any(s.retrieved for s in measured)
+        else None,
         "excerpt_validity": _ratio(valid_quotes, quotes),
         "quotes_checked": quotes,
         "refusal_accuracy": _ratio(
