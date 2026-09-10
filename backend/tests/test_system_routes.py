@@ -1,3 +1,9 @@
+"""System route tests.
+
+Configuration isolation is handled by conftest: the suite runs from a directory
+with no .env, and settings caches are cleared around each test.
+"""
+
 from fastapi.testclient import TestClient
 
 from app.main import create_app
@@ -17,39 +23,43 @@ def test_health_reports_ok_without_touching_provider(monkeypatch):
 
 def test_meta_reports_capabilities_for_ollama(monkeypatch):
     monkeypatch.setenv("LLM_PROVIDER", "ollama")
-    from app.config import get_settings
-    from app.llm.registry import get_provider
 
-    get_settings.cache_clear()
-    get_provider.cache_clear()
-
-    client = TestClient(create_app())
-    body = client.get("/api/meta").json()
+    body = TestClient(create_app()).get("/api/meta").json()
 
     assert body["provider"]["name"] == "ollama"
     # The local 3B model is text-only; image and speech must degrade, not appear.
     assert body["provider"]["capabilities"] == ["text"]
     assert "not legal advice" in body["disclaimer"]
 
-    get_settings.cache_clear()
-    get_provider.cache_clear()
-
 
 def test_meta_does_not_crash_when_groq_key_missing(monkeypatch):
     """Misconfiguration should surface in the response, not prevent boot."""
     monkeypatch.setenv("LLM_PROVIDER", "groq")
     monkeypatch.delenv("GROQ_API_KEY", raising=False)
-    from app.config import get_settings
-    from app.llm.registry import get_provider
 
-    get_settings.cache_clear()
-    get_provider.cache_clear()
-
-    client = TestClient(create_app())
-    response = client.get("/api/meta")
+    response = TestClient(create_app()).get("/api/meta")
 
     assert response.status_code == 200
     assert response.json()["provider"]["chat_model"] == "unconfigured"
 
-    get_settings.cache_clear()
-    get_provider.cache_clear()
+
+def test_groq_declares_only_capabilities_backed_by_a_configured_model(monkeypatch):
+    """A capability asserted but unbacked by a model fails at call time, which is
+    the failure the declaration exists to prevent. No vision model is offered on
+    the current catalogue, so vision must not be advertised."""
+    monkeypatch.setenv("LLM_PROVIDER", "groq")
+    monkeypatch.setenv("GROQ_API_KEY", "gsk_test_not_a_real_key")
+
+    body = TestClient(create_app()).get("/api/meta").json()
+
+    assert body["provider"]["capabilities"] == ["text", "transcription"]
+
+
+def test_vision_is_declared_when_a_vision_model_is_configured(monkeypatch):
+    monkeypatch.setenv("LLM_PROVIDER", "groq")
+    monkeypatch.setenv("GROQ_API_KEY", "gsk_test_not_a_real_key")
+    monkeypatch.setenv("GROQ_VISION_MODEL", "some/vision-model")
+
+    body = TestClient(create_app()).get("/api/meta").json()
+
+    assert "vision" in body["provider"]["capabilities"]

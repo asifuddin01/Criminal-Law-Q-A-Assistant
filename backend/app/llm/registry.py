@@ -18,6 +18,16 @@ def _build_groq(settings: Settings) -> LLMProvider:
             "llm_provider is 'groq' but GROQ_API_KEY is not set. "
             "Set it in backend/.env, or set LLM_PROVIDER=ollama to run locally."
         )
+    # Capabilities are declared from what is actually configured, not from what the
+    # provider is assumed to offer. A capability asserted but unbacked by a model
+    # fails at call time, which is exactly the failure the declaration exists to
+    # prevent.
+    capabilities = {Capability.TEXT}
+    if settings.groq_transcription_model:
+        capabilities.add(Capability.TRANSCRIPTION)
+    if settings.groq_vision_model:
+        capabilities.add(Capability.VISION)
+
     return OpenAICompatibleProvider(
         name="groq",
         base_url=settings.groq_base_url,
@@ -25,9 +35,7 @@ def _build_groq(settings: Settings) -> LLMProvider:
         chat_model=settings.groq_chat_model,
         vision_model=settings.groq_vision_model,
         transcription_model=settings.groq_transcription_model,
-        capabilities=frozenset(
-            {Capability.TEXT, Capability.VISION, Capability.TRANSCRIPTION}
-        ),
+        capabilities=frozenset(capabilities),
         default_temperature=settings.temperature,
         default_max_tokens=settings.max_tokens,
         timeout=settings.request_timeout_seconds,

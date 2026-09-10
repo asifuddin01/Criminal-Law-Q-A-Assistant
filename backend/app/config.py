@@ -19,9 +19,16 @@ class Settings(BaseSettings):
 
     groq_api_key: str | None = None
     groq_base_url: str = "https://api.groq.com/openai/v1"
-    groq_chat_model: str = "llama-3.3-70b-versatile"
-    groq_vision_model: str = "meta-llama/llama-4-scout-17b-16e-instruct"
+
+    # Defaults verified against the live model catalogue on 2026-09-10 rather than
+    # assumed. Check with: python -m app.llm.models
+    groq_chat_model: str = "openai/gpt-oss-120b"
     groq_transcription_model: str = "whisper-large-v3"
+
+    # No vision-capable model is offered on this account's catalogue. Left unset so
+    # the provider declares no VISION capability and image input degrades rather
+    # than failing at call time. See ADR 0003 and ADR 0004.
+    groq_vision_model: str | None = None
 
     ollama_base_url: str = "http://localhost:11434/v1"
     ollama_chat_model: str = "qwen2.5:3b-instruct"

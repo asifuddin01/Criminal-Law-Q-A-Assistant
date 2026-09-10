@@ -23,7 +23,7 @@ is the honest state of the repository, not a roadmap.
 | Architecture decisions | Recorded — [docs/adr/](docs/adr/) |
 | Source survey | Complete — [DATA_SOURCE.md](DATA_SOURCE.md) |
 | Evaluation methodology | Defined — [eval/README.md](eval/README.md) |
-| Backend service, provider abstraction | Working, tested |
+| Backend service, provider abstraction | Working, tested, connected to Groq |
 | Ingestion pipeline | Parser working, tested — 522 sections, 599 amendments |
 | Retrieval and generation | Not built |
 | Evaluation dataset | Built — 95 questions, all labels validated |
@@ -62,15 +62,21 @@ covers every input path.
 |---|---|
 | Backend | FastAPI, Python 3.12 ([why](docs/adr/0008-web-framework-choice.md)) |
 | Frontend | Next.js |
-| Generation | Groq free tier, Ollama `qwen2.5:3b-instruct` fallback |
-| Speech | `whisper-large-v3` |
+| Generation | Groq `openai/gpt-oss-120b`, Ollama `qwen2.5:3b-instruct` fallback |
+| Speech | Groq `whisper-large-v3` |
 | Embeddings | `multilingual-e5-small` |
 | Retrieval | BM25 + dense, reciprocal rank fusion |
 
 Groq and Ollama both expose an OpenAI-compatible API, so one client implementation serves
-both, and one credential covers generation, transcription and vision. Providers declare
-capabilities explicitly: an Ollama deployment reports text-only, and the interface hides
-speech and image input rather than offering controls that fail on use.
+both, and one credential covers generation and transcription. Providers declare
+capabilities from what is actually configured: an Ollama deployment reports text-only,
+and the interface hides inputs it cannot serve rather than offering controls that fail
+on use.
+
+Model identifiers are verified against the live catalogue rather than assumed —
+`python -m app.llm.models` prints it and flags anything configured but missing. The
+current Groq catalogue offers **no vision-capable model**, so vision is not declared and
+image input needs a separate path; see [Limitations](#limitations).
 
 Retrieval choices are provisional. They are settled by measurement in
 [EXPERIMENTS.md](EXPERIMENTS.md), not by assertion here.
@@ -167,6 +173,11 @@ full. Approximating this would be worse than declining it.
 
 **English corpus.** Bangla questions are supported against English statutory text. The Bangla
 texts on bdlaws are not yet ingested, so answers and quoted excerpts are in English.
+
+**Image input has no provider yet.** The Groq catalogue available to this project
+offers no vision-capable model, so image questions cannot currently be served. The
+capability system degrades correctly rather than failing at call time, but the feature
+is unimplemented pending a decision on the path — local OCR or a second provider.
 
 **Case law is out of scope.** The corpus is statutory. Judicial interpretation frequently
 determines how a provision operates in practice, and none of it is here.

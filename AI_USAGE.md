@@ -132,3 +132,44 @@ produces correct output, and an assistant will report success on the former. For
 citation-grounded system the distinction is the whole product: a corpus with
 mislabelled sections retrieves fluently and cites confidently, and no retrieval metric
 detects it, because retrieval succeeded — against the wrong text.
+
+### 5. Model identifiers hardcoded from memory — corrected against the live catalogue
+
+**What the assistant proposed.** Provider defaults naming `llama-3.3-70b-versatile` for
+chat and `meta-llama/llama-4-scout-17b-16e-instruct` for vision.
+
+**Why it was wrong.** Neither exists on the account's catalogue. The failure mode is
+particularly misleading: authentication succeeds, `/api/meta` reports a model name, and
+every actual request returns an error — which reads as a credential problem and is not
+one. Diagnosis went to the API key first, and the key was fine.
+
+**How it was caught.** By querying `models.list()` to separate an auth failure from a
+model-availability failure, rather than continuing to investigate the credential.
+
+**Correction.** Defaults now come from the live catalogue (`openai/gpt-oss-120b` for
+chat, `whisper-large-v3` for transcription, both verified present), and
+`python -m app.llm.models` prints the catalogue and flags any configured model missing
+from it. The catalogue offers no vision-capable model, so `groq_vision_model` is unset
+and the provider declares no vision capability rather than advertising one that fails
+at call time.
+
+**Lesson recorded.** Model identifiers change without notice and differ between
+accounts and tiers. They are exactly the kind of detail an assistant produces
+confidently from training data, and exactly the kind that cannot be verified by reading
+the code — only by asking the provider.
+
+### 6. A test that passed for the wrong reason
+
+**What happened.** A test asserting the service boots with a missing API key passed
+only because no `.env` existed in the repository. The moment a real `.env` was created,
+the test began exercising a configured provider instead of a missing one — and failed,
+which is how it was noticed. Had it been written to be lenient, it would have gone on
+passing while testing nothing.
+
+**Correction.** `tests/conftest.py` runs the suite from a directory with no `.env` and
+clears the settings and provider caches around each test, so behaviour no longer
+depends on the developer's environment.
+
+**Lesson recorded.** Green tests are evidence only if they can fail. This one depended
+on the absence of a file that the setup instructions tell every developer to create.
+
