@@ -31,15 +31,22 @@ rubric, with a manually scored subset each stage to check the judge has not drif
 ```json
 {
   "id": "q-0001",
-  "question": "Who may arrest without a warrant?",
+  "question": "When may a police officer arrest a person without a warrant?",
   "language": "en",
+  "slice": "direct_lookup",
   "gold_sections": ["CrPC-54"],
   "answerable": true,
-  "category": "arrest",
-  "notes": "s.54 enumerates the cases; see also s.55",
-  "verified_against": "https://bdlaws.minlaw.gov.bd/act-print-75.html"
+  "requires_acts": ["CrPC"],
+  "notes": "",
+  "verified_against": "bdlaws act-print-75.html (2026-09-10 snapshot)"
 }
 ```
+
+`requires_acts` records which acts would answer a question. Unanswerability is
+relative to the current corpus, not absolute: "is theft bailable?" is unanswerable
+today because Schedule II is not yet ingested, and it must flip to answerable when it
+is. Recording the dependency keeps these labels correct as the corpus grows, instead
+of silently rotting into wrong labels.
 
 ### Construction protocol
 
@@ -72,7 +79,11 @@ questions reliably learns to always answer.
 ## Running
 
 ```bash
-cd backend && uv run python -m eval.harness --stage <n>
+# Validate every gold label against the parsed corpus
+cd backend && uv run python -m app.evaluation
+
+# Run the dataset against a stage (from stage 1 onward)
+cd backend && uv run python -m app.evaluation.harness --stage <n>
 ```
 
 Results are written to `runs/stage-<n>/` as both a machine-readable summary and a
@@ -82,8 +93,23 @@ per-question breakdown, and the summary table in
 Model responses are cached by prompt hash so that re-running after an unrelated change does
 not re-spend free-tier quota.
 
+## Validation
+
+Labels are not trusted; they are checked, and the check is a hard failure.
+
+`python -m app.evaluation` verifies that every gold label resolves to a section that
+exists in the parsed corpus, is not repealed, and has text. Resolution alone is a weak
+check — a label can point at a real section that is simply the wrong one — so each
+frequently cited section also carries a distinctive phrase taken from its text at the
+time the question was written. If a label stops pointing at the provision the question
+was written against, or bdlaws republishes that section in different words, validation
+fails loudly rather than quietly degrading every metric computed from it.
+
+The validator is itself covered by negative tests, which confirm it rejects a
+non-existent label and a label pointing at the wrong provision. A validator that
+passes because it checks nothing is worse than none.
+
 ## Status
 
-Metric definitions and dataset schema are fixed. Dataset construction begins once the
-ingestion pipeline can resolve section identifiers, so that every gold label can be
-validated against real ingested text at the moment it is written.
+Dataset built: **95 questions**, all labels validated against the parsed corpus.
+Metrics and harness follow.

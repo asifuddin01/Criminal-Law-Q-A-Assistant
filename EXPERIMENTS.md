@@ -15,7 +15,7 @@ advance so that a stage producing no improvement is visibly a result rather than
 
 | Stage | Change | Status |
 |---|---|---|
-| 0 | Harness, gold dataset, no retrieval | Parser done; dataset next |
+| 0 | Harness, gold dataset, no retrieval | Done |
 | 1 | LLM-only baseline | Not started |
 | 2 | Naive fixed-size chunking, dense retrieval | Not started |
 | 3 | Legal-aware chunking on section boundaries | Not started |
@@ -132,3 +132,53 @@ gold section labels against parsed text rather than recall them.
 
 **Next step.** Build the gold evaluation set against the parsed corpus, now that
 section identifiers resolve.
+
+### 2026-09-10 — Gold evaluation dataset
+
+**Objective.** Build the dataset every later stage is measured against, with labels
+correct enough to trust.
+
+**Hypothesis.** The risk here is not dataset size but label correctness. A wrong gold
+label penalises correct retrieval and rewards incorrect retrieval, invisibly.
+
+**Method.** Questions were derived *from* the corpus rather than written from memory
+and matched to sections afterwards. The full text of every cited section was read
+before a question citing it was written. Labels are then validated mechanically.
+
+**Result.** 95 questions, 94 labels, all resolving against the parsed corpus.
+
+| Slice | Questions |
+|---|---|
+| ambiguous | 9 |
+| amended | 10 |
+| bangla | 10 |
+| direct_lookup | 40 |
+| multi_section | 12 |
+| unanswerable | 14 |
+
+**Design decisions worth recording.**
+
+*Unanswerability is relative to the corpus, not absolute.* "Is theft bailable?" is
+unanswerable today only because Schedule II is a separate PDF that is not yet
+ingested. Each unanswerable question records `requires_acts`, so these labels flip
+correctly as the corpus grows rather than rotting into wrong labels. Four questions
+depend on Schedule II specifically, which makes the gap from DATA_SOURCE finding 7
+measurable rather than merely noted.
+
+*24% of the dataset is unanswerable or ambiguous.* A dataset weighted toward
+answerable questions teaches a system to always answer, which is precisely the
+behaviour the brief asks us to avoid.
+
+*Labels carry a content expectation, not just an identifier.* Resolution is a weak
+check: a label can point at a real section that is simply the wrong one. Each
+frequently cited section carries a distinctive phrase from its text, so a label that
+drifts off its provision — or a source republished in different words — fails loudly.
+
+*The validator has negative tests.* Two tests confirm it rejects a non-existent label
+and a label pointing at the wrong provision. A validator that passes because it checks
+nothing is worse than no validator, because it is trusted.
+
+**Decision.** Dataset frozen for stage 1. 42 tests passing.
+
+**Next step.** LLM-only baseline: run all 95 questions with no retrieval, to establish
+the hallucination floor and the refusal behaviour of a bare model.

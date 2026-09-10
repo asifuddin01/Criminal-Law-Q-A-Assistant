@@ -26,7 +26,7 @@ is the honest state of the repository, not a roadmap.
 | Backend service, provider abstraction | Working, tested |
 | Ingestion pipeline | Parser working, tested — 522 sections, 599 amendments |
 | Retrieval and generation | Not built |
-| Evaluation dataset | Not built — deferred until section identifiers resolve |
+| Evaluation dataset | Built — 95 questions, all labels validated |
 | Frontend | Not built |
 
 ## Architecture
