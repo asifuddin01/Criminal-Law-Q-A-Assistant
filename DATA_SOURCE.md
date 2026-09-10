@@ -92,6 +92,45 @@ matching. An amendment-aware layer is therefore grounded in the published record
 than inferred. This also supplies the incremental-document-update demonstration, since the
 amending acts are themselves separate acts on the same site.
 
+### 6. The whole act is available as a single document
+
+*Established 2026-09-10, after findings 1-5 and after ADR 0002 had already been accepted.*
+
+Two further endpoints serve the entire act on one page:
+
+| Endpoint | Size | Contents |
+|---|---|---|
+| `/act-details-75.html` | ~554,800 chars | Full act plus site navigation chrome |
+| `/act-print-75.html` | ~554,400 chars | Full act, print view, minimal chrome |
+
+Both carry the complete Code — section markers run from 1 to 565 — with PART and CHAPTER
+headings inline, marginal notes as inline headers, and **599 numbered amendment footnotes**
+at the foot of the document.
+
+Crucially, the single-document view **preserves the true section grouping** that the
+per-section URLs fragment. Section 1 appears as one continuous run:
+
+```
+Short title Commencement
+1.(1) This Act may be called the Code of Criminal Procedure, 1898; ...
+Extent
+(2) It extends to the whole of Bangladesh; ...
+```
+
+The marginal note is a header *within* the section rather than a separate document, and
+subsection numbering continues naturally.
+
+*Consequence:* the reassembly problem described in finding 2 does not need to be solved. It
+was an artefact of choosing the wrong endpoint. Ingesting `/act-print-75.html` requires one
+request instead of 594, removes the number-inheritance heuristic and the failure modes that
+came with it, and is dramatically more considerate of a government server.
+
+Finding 2 remains recorded because it is still true of the per-section endpoints, and
+because any act whose print view is unavailable will have to fall back to that path.
+
+This finding supersedes the ingestion strategy in ADR 0002. See
+[ADR 0005](docs/adr/0005-ingest-from-single-document-print-view.md).
+
 ## Corpus scope
 
 **Core.** The Code of Criminal Procedure, 1898 (`act-75`) and its amending acts.

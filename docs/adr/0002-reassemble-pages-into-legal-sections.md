@@ -1,6 +1,6 @@
 # 2. Reassemble source pages into legal sections before chunking
 
-**Status:** Accepted · **Date:** 2026-09-10
+**Status:** Superseded by [ADR 0005](0005-ingest-from-single-document-print-view.md) · **Date:** 2026-09-10
 
 ## Context
 
