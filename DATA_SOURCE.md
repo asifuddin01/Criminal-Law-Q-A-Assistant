@@ -131,18 +131,65 @@ because any act whose print view is unavailable will have to fall back to that p
 This finding supersedes the ingestion strategy in ADR 0002. See
 [ADR 0005](docs/adr/0005-ingest-from-single-document-print-view.md).
 
+### 7. Schedule II is not in the HTML corpus; it is a separate PDF
+
+*Established 2026-09-10.*
+
+The print view contains the act text (to roughly character 455,000) followed by the footnote
+apparatus. It does **not** contain the Schedules. The table of contents links the schedule
+out to a PDF:
+
+```
+https://bdlaws.minlaw.gov.bd/upload/act/2026-05-05-11-47-47-Schedule-II.pdf
+```
+
+Verified reachable: `200`, `application/pdf`, 3,840,115 bytes, last modified 2026-05-05.
+
+The two HTML `<table>` elements in the print view are the compoundable-offence tables inside
+s.345, not the Schedules.
+
+*Why this matters.* Schedule II is load-bearing for the Code. Section 4(1)(b) defines
+*bailable offence* by reference to it, and s.4(1)(f) defines *cognizable offence* by
+reference to it. The schedule classifies each Penal Code offence by whether police may
+arrest without warrant, whether it is bailable, whether a warrant or summons issues, whether
+it is compoundable, and which court may try it.
+
+Questions of the form "is theft bailable?" or "can police arrest without a warrant for
+criminal breach of trust?" are therefore answered by the schedule and by nothing else in the
+corpus. Without it the system retrieves the *definition* in s.4(1)(b), which is a pointer
+rather than an answer, and produces a fluent, correctly cited non-answer.
+
+*Consequence.* Schedule II must be ingested, and it is tabular rather than prose. Prose
+chunking would destroy the row structure that carries the meaning — a row associates an
+offence with its procedural attributes, and a chunk spanning a row boundary silently
+attributes one offence's bailability to another. It is therefore extracted as structured
+rows and queried by lookup, with retrieval falling back to it when a question turns on
+offence classification.
+
+This also makes the PDF-ingestion capability listed as optional in the brief a requirement
+of the core corpus rather than an extra.
+
 ## Corpus scope
 
-**Core.** The Code of Criminal Procedure, 1898 (`act-75`) and its amending acts.
+Membership follows the criterion in [ADR 0007](docs/adr/0007-inclusion-criterion-for-related-laws.md):
+an act is in scope if CrPC incorporates it by normative reference, or if it displaces CrPC
+procedure. Each document carries a role per
+[ADR 0006](docs/adr/0006-document-roles-separate-operative-law-from-amending-instruments.md).
 
-**Related legislation**, to be added incrementally and used to demonstrate document
-addition without full reindexing:
+| Document | Role | Source |
+|---|---|---|
+| Code of Criminal Procedure, 1898 | `operative` | `act-print-75.html` |
+| CrPC Schedule II | `schedule` | `upload/act/2026-05-05-11-47-47-Schedule-II.pdf` |
+| CrPC amending acts and ordinances | `amending` | Individual acts on bdlaws |
+| Penal Code, 1860 | `operative` | bdlaws |
+| Evidence Act, 1872 | `operative` | bdlaws |
+| Special Powers Act, 1974 | `operative` | bdlaws |
+| Nari-o-Shishu Nirjatan Daman Ain, 2000 | `operative` | bdlaws |
+| Cyber Security Act, 2023 | `operative` | bdlaws |
 
-- The Penal Code, 1860 (Act No. XLV of 1860)
-- The Evidence Act, 1872 (Act No. I of 1872)
-- The Special Powers Act, 1974
-- Nari-o-Shishu Nirjatan Daman Ain, 2000
-- The Cyber Security Act, 2023
+Acts beyond CrPC are ingested one at a time, each demonstrating the incremental-update path
+and each followed by an evaluation run, so that an addition which degrades retrieval on core
+questions is detected rather than presumed harmless.
 
 ## Retrieval and provenance policy
 
