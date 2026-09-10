@@ -1,0 +1,40 @@
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+*.egg-info/
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
+
+# Node
+node_modules/
+.next/
+out/
+dist/
+*.tsbuildinfo
+
+# Environment
+.env
+.env.local
+.env.*.local
+
+# Data — raw scrapes and built indexes are reproducible, never committed
+data/raw/
+data/interim/
+data/index/
+*.sqlite
+*.duckdb
+
+# Model caches
+.cache/
+models/
+
+# Eval outputs — results are committed, scratch runs are not
+eval/runs/scratch/
+
+# OS / editor
+.DS_Store
+.idea/
+.vscode/
