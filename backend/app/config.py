@@ -38,7 +38,17 @@ class Settings(BaseSettings):
     temperature: float = 0.0
     max_tokens: int = 1024
 
+    # Answer generation needs a larger budget than the default. Reasoning models
+    # such as gpt-oss spend completion tokens on reasoning before emitting any
+    # content, so a budget sized for the answer alone returns an empty string with
+    # finish_reason "stop" — a silent truncation that looks like a model failure.
+    answer_max_tokens: int = 2500
+
     request_timeout_seconds: float = 60.0
+
+    # Free-tier token-per-minute limits are reached easily by a full evaluation
+    # sweep. The client retries 429s with backoff, honouring Retry-After.
+    request_max_retries: int = 6
 
 
 @lru_cache

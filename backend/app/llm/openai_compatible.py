@@ -34,6 +34,7 @@ class OpenAICompatibleProvider(LLMProvider):
         default_temperature: float = 0.0,
         default_max_tokens: int = 1024,
         timeout: float = 60.0,
+        max_retries: int = 6,
     ) -> None:
         self.name = name
         self._chat_model = chat_model
@@ -42,7 +43,12 @@ class OpenAICompatibleProvider(LLMProvider):
         self._capabilities = capabilities
         self._default_temperature = default_temperature
         self._default_max_tokens = default_max_tokens
-        self._client = AsyncOpenAI(base_url=base_url, api_key=api_key, timeout=timeout)
+        self._client = AsyncOpenAI(
+            base_url=base_url,
+            api_key=api_key,
+            timeout=timeout,
+            max_retries=max_retries,
+        )
 
     @property
     def capabilities(self) -> frozenset[Capability]:
