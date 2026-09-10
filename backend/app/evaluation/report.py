@@ -38,10 +38,20 @@ SERIES = ["#2a6f97", "#e07a5f", "#5f8d4e", "#8e7cc3", "#c9922e"]
 
 
 def load_runs() -> list[dict]:
+    """Complete runs only, and never from scratch.
+
+    Charts are report artefacts. A partial run plotted beside complete ones is a
+    misleading picture, so partial runs are excluded here rather than annotated.
+    """
     runs = []
     for path in sorted(RUNS_DIR.glob("stage-*/summary.json")):
-        runs.append(json.loads(path.read_text(encoding="utf-8")))
-    return sorted(runs, key=lambda r: r["stage"])
+        if "scratch" in path.parts:
+            continue
+        run = json.loads(path.read_text(encoding="utf-8"))
+        if run.get("partial"):
+            continue
+        runs.append(run)
+    return sorted(runs, key=lambda r: (r.get("model", ""), r["stage"]))
 
 
 def _style(ax) -> None:

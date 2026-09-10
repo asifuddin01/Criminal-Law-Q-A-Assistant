@@ -63,6 +63,13 @@ _BUILDERS = {"groq": _build_groq, "ollama": _build_ollama}
 
 
 @lru_cache
-def get_provider() -> LLMProvider:
+def get_provider(name: str | None = None) -> LLMProvider:
+    """Build the configured provider, or a named one.
+
+    The override exists for whole-run substitution — an evaluation sweep that falls
+    back to a local model must do so for the entire stage. It is never used to swap
+    providers within a run: answers from two models in one result set describe
+    neither, which is the confound the staged evaluation exists to avoid.
+    """
     settings = get_settings()
-    return _BUILDERS[settings.llm_provider](settings)
+    return _BUILDERS[name or settings.llm_provider](settings)

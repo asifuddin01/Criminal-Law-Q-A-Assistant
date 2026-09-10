@@ -17,6 +17,7 @@ import asyncio
 import hashlib
 import json
 import pathlib
+import re
 import sys
 import time
 from dataclasses import asdict
@@ -102,8 +103,86 @@ async def _run_one(
     return answer, False
 
 
+def _slug(text: str) -> str:
+    return text.replace("/", "-").replace(":", "-").replace(".", "-")
+
+
+def results_dir(
+    stage: int, provider_name: str, *, partial: bool = False
+) -> pathlib.Path:
+    """Where a run's results belong.
+
+    Each provider gets its own track: writing a local-model sweep over the hosted one
+    would leave a directory whose numbers came from two models with no way to tell
+    which. Tracks are kept apart so a comparison is always within one model.
+
+    A partial run — anything with --limit — goes to scratch, which is gitignored. A
+    three-question smoke test overwrote a complete 95-question result set once; git
+    had it, but nothing in the pipeline should depend on that.
+    """
+    leaf = f"stage-{stage}"
+    if provider_name != "groq":
+        leaf += f"-{_slug(provider_name)}"
+    if partial:
+        return RUNS_DIR / "scratch" / leaf
+    return RUNS_DIR / leaf
+
+
+def _explain_exhausted(
+    stage: int, message: str, done: int, total: int, provider_name: str
+) -> None:
+    """Print the choice rather than making it."""
+    remaining = total - done
+    limit = used = None
+    numbers = re.search(r"Limit (\d+), Used (\d+)", message)
+    if numbers:
+        limit, used = int(numbers.group(1)), int(numbers.group(2))
+
+    print("\n" + "=" * 72)
+    print("DAILY TOKEN BUDGET EXHAUSTED — no results written")
+    print("=" * 72)
+    if limit is not None:
+        print(f"  provider budget : {used:,} / {limit:,} tokens used today")
+    print(f"  answers cached  : {done} of {total} ({remaining} still needed)")
+    print()
+    print("  Nothing was written. A partial sweep biases whichever slices come last")
+    print("  in the dataset, and it looks like a measurement.")
+    print()
+    print("  Two ways forward. Both run the WHOLE stage on ONE model — a stage")
+    print("  answered half by one model and half by another measures neither.")
+    print()
+    # The budget refills on a rolling window rather than at a fixed hour, at roughly
+    # limit/24h. Cached answers survive, so waiting resumes rather than restarts.
+    if limit:
+        per_hour = limit / 24
+        need = remaining * 3000
+        hours = need / per_hour
+        print(f"  1. WAIT  (~{hours:.0f}h — budget refills at about "
+              f"{per_hour:,.0f} tokens/hour)")
+    else:
+        print("  1. WAIT  (budget refills on a rolling window)")
+    print("     Cached answers are kept, so this resumes rather than restarts:")
+    print(f"       uv run python -m app.evaluation.harness --stage {stage}")
+    print()
+    print("  2. SWITCH to the local model and re-run the whole stage now")
+    print("     Free and unlimited, but qwen2.5:3b is materially weaker than the")
+    print("     hosted model, and results land on a separate track so they are never")
+    print("     compared against hosted numbers:")
+    print(f"       uv run python -m app.evaluation.harness --stage {stage} "
+          f"--provider ollama")
+    print()
+    print("     For a like-for-like comparison every stage must be re-run on ollama,")
+    print("     not just this one.")
+    print("=" * 72)
+
+
 async def run_stage(
-    stage: int, *, limit: int | None, concurrency: int, use_cache: bool
+    stage: int,
+    *,
+    limit: int | None,
+    concurrency: int,
+    use_cache: bool,
+    provider_name: str | None = None,
 ) -> int:
     if stage not in STAGES:
         print(f"stage {stage} is not implemented; available: {sorted(STAGES)}")
@@ -123,7 +202,7 @@ async def run_stage(
     if limit:
         questions = questions[:limit]
 
-    provider = get_provider()
+    provider = get_provider(provider_name)
     name, description, strategy = STAGES[stage]
 
     if strategy is None:
@@ -150,12 +229,13 @@ async def run_stage(
             *(_run_one(system, q, model, semaphore, use_cache) for q in questions)
         )
     except DailyBudgetExhausted as exhausted:
-        print(f"\nSTOPPED: {exhausted}")
-        print(
-            "The per-day token allowance is spent. Answers already obtained are "
-            "cached, so re-running after the reset resumes rather than restarts.\n"
-            "No results were written: a partial sweep biases whichever slices come "
-            "last in the dataset."
+        cached = sum(
+            1
+            for q in questions
+            if _read_cache(_cache_key(system.name, model, q.question)) is not None
+        )
+        _explain_exhausted(
+            stage, str(exhausted), cached, len(questions), provider.name
         )
         return 3
     elapsed = time.perf_counter() - started
@@ -173,8 +253,9 @@ async def run_stage(
     summary["model"] = model
     summary["elapsed_seconds"] = round(elapsed, 1)
     summary["cache_hits"] = cache_hits
+    summary["partial"] = bool(limit)
 
-    destination = RUNS_DIR / f"stage-{stage}"
+    destination = results_dir(stage, provider.name, partial=bool(limit))
     destination.mkdir(parents=True, exist_ok=True)
     (destination / "summary.json").write_text(
         json.dumps(summary, indent=2, ensure_ascii=False), encoding="utf-8"
@@ -198,6 +279,11 @@ async def run_stage(
 
     _report(summary)
     print(f"\nwritten to {destination.relative_to(REPO_ROOT)}/")
+    if limit:
+        print(
+            f"partial run ({limit} of {len(load_gold())} questions) — written to "
+            "scratch, which is not committed and is not read by the report"
+        )
     return 0
 
 
@@ -252,6 +338,12 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument(
         "--no-cache", action="store_true", help="ignore cached model responses"
     )
+    parser.add_argument(
+        "--provider",
+        choices=("groq", "ollama"),
+        default=None,
+        help="run the whole stage on this provider instead of the configured one",
+    )
     args = parser.parse_args(argv)
     return asyncio.run(
         run_stage(
@@ -259,6 +351,7 @@ def main(argv: list[str] | None = None) -> int:
             limit=args.limit,
             concurrency=args.concurrency,
             use_cache=not args.no_cache,
+            provider_name=args.provider,
         )
     )
 
