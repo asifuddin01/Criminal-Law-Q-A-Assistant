@@ -17,8 +17,8 @@ advance so that a stage producing no improvement is visibly a result rather than
 |---|---|---|
 | 0 | Harness, gold dataset, no retrieval | Done |
 | 1 | LLM-only baseline | Done |
-| 2 | Naive fixed-size chunking, dense retrieval | Retrieval measured; generation run incomplete |
-| 3 | Legal-aware chunking on section boundaries | Retrieval measured; generation pending quota |
+| 2 | Naive fixed-size chunking, dense retrieval | Complete on local model; hosted run partial |
+| 3 | Legal-aware chunking on section boundaries | Complete on local model; hosted run pending quota |
 | 4 | Hybrid retrieval (BM25 + dense, RRF) | Not started |
 | 5 | Reranking | Not started |
 | 6 | Prompt and refusal behaviour | Not started |
@@ -42,6 +42,16 @@ refusal accuracy are reported per stage against the frozen gold set.
 
 \* Stage 2 generation figures are from an incomplete sweep (62 of 95 measured, Bangla
 slice lost entirely to rate limits) and are provisional. Retrieval figures are complete.
+
+**Complete progression on the local model** (`qwen2.5:3b-instruct`, all three stages,
+93-94 of 95 measured each). Absolute quality is lower than the hosted model, but the
+model is constant across stages, so the movement is attributable to the pipeline:
+
+| Stage | Retrieval recall | Citation precision | Answer hit rate | Excerpt validity | Refusal accuracy |
+|---|---|---|---|---|---|
+| 1 — LLM only | n/a | 7.4% | 1.4% | 0.0% | 71.0% |
+| 2 — naive chunks | 48.6% | 36.8% | 36.1% | 49.4% | 83.0% |
+| 3 — legal-aware chunks | **88.6%** | **80.8%** | **80.0%** | 53.2% | 86.0% |
 
 ## Entries
 
@@ -371,4 +381,59 @@ response: it answers the question that actually mattered — does legal-aware ch
 help? — with no model in the loop, no quota consumed, and no confound from generation.
 The constraint produced a better experiment than the one originally planned, because it
 forced the variable to be isolated.
+
+### 2026-09-11 — Complete three-stage progression on the local model
+
+**Objective.** Obtain a complete, internally consistent progression across all three
+stages while the hosted model's daily budget was spent.
+
+**Configuration.** `qwen2.5:3b-instruct` via Ollama, same 95 questions, same indexes,
+same prompts, same `k=8`. Roughly 10 seconds per question, so about 16 minutes per
+stage. The model is held constant across all three stages, which is what makes the
+movement attributable to the pipeline rather than to the model.
+
+**Result.** 93 to 94 of 95 measured at each stage.
+
+| Metric | Stage 1 | Stage 2 | Stage 3 | Change |
+|---|---|---|---|---|
+| Retrieval recall | n/a | 48.6% | **88.6%** | +40.0 pts |
+| Citation precision | 7.4% | 36.8% | **80.8%** | ×10.9 |
+| Answer hit rate | 1.4% | 36.1% | **80.0%** | ×57 |
+| Hallucinated citation rate | 8.6% | 0.0% | **0.0%** | eliminated |
+| Excerpt validity | 0.0% | 49.4% | 53.2% | +53.2 pts |
+| Refusal accuracy | 71.0% | 83.0% | **86.0%** | +15.0 pts |
+
+Citation precision rises elevenfold and answer hit rate fifty-sevenfold. Fabricated
+section numbers are eliminated entirely the moment retrieval is introduced, because a
+model given real sections stops inventing them.
+
+**Failure cases examined.**
+
+*Excerpt validity stalls near half.* It moves from 0% to 49.4% with retrieval and then
+barely at all — 53.2% — with better chunking. Roughly half of all quotations remain
+paraphrases of text the model was actually shown. Better retrieval cannot fix this:
+the model has the correct text in front of it and reflows it anyway. This is precisely
+the gap the citation validation gate exists to close, and it closes it deterministically
+rather than by asking the model to try harder. It also means the gate is not
+belt-and-braces on a solved problem — at stage 3 it is still stripping about half the
+quotations offered.
+
+*Retrieval makes the system more willing to answer what it cannot.* Refusals on
+genuinely unanswerable questions fall as the pipeline improves: 69.6% at stage 1, 63.6%
+at stage 2, 56.5% at stage 3. Retrieval always returns something, and something is
+enough for the model to construct an answer around. Overall refusal accuracy still rises
+because false refusals on answerable questions collapse from 28.6% to 4.3%, but the
+out-of-scope slice moves the wrong way. Better retrieval buys confidence, and confidence
+is not free — a system that always has context will always find a reason to answer. The
+fix is not more retrieval but a relevance floor: retrieved text that is merely the
+nearest available is not the same as text that answers the question.
+
+**Decision.** This is the reportable end-to-end progression. The hosted model's stages 1
+and 2 remain the higher-quality track and will be completed when budget allows; the two
+tracks are kept in separate result directories and are never plotted on one line, since
+a stage-to-stage line spanning two models cannot distinguish pipeline improvement from
+model quality.
+
+**Next step.** Finish stage 2 and run stage 3 on the hosted model. Then a relevance
+floor for the out-of-scope regression above.
 

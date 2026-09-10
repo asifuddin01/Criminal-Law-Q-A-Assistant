@@ -25,7 +25,7 @@ is the honest state of the repository, not a roadmap.
 | Evaluation methodology | Defined — [eval/README.md](eval/README.md) |
 | Backend service, provider abstraction | Working, tested, connected to Groq |
 | Ingestion pipeline | Parser working, tested — 522 sections, 599 amendments |
-| Retrieval and generation | Retrieval built and measured; stage 2/3 generation pending quota |
+| Retrieval and generation | Complete on local model; hosted stages 2-3 pending quota |
 | Evaluation dataset | Built — 95 questions, all labels validated |
 | Frontend | Not built |
 

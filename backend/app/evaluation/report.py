@@ -24,6 +24,15 @@ CHARTS_DIR = RUNS_DIR / "charts"
 
 # Higher is better for all of these except the hallucination rate, which is inverted
 # when plotted so that "up" means "better" everywhere on the progression chart.
+# Below this, losing a few questions is noise; above it, the surviving sample may
+# be skewed toward whichever slices happened to complete.
+MATERIAL_LOSS = 0.05
+
+
+def _materially_incomplete(run: dict) -> bool:
+    return run["questions"] and run["errors"] / run["questions"] > MATERIAL_LOSS
+
+
 HEADLINE = [
     ("retrieval_recall", "Retrieval recall"),
     ("citation_precision", "Citation precision"),
@@ -63,12 +72,28 @@ def _style(ax) -> None:
     ax.set_axisbelow(True)
 
 
-def chart_progression(runs: list[dict]) -> pathlib.Path:
+def group_by_model(runs: list[dict]) -> dict[str, list[dict]]:
+    """Runs grouped by the model that produced them.
+
+    A progression line must never span two models. Stage-to-stage movement is only
+    interpretable when the model is held constant — otherwise a rise could be
+    retrieval improving or simply a stronger model, and the chart cannot say which.
+    """
+    grouped: dict[str, list[dict]] = {}
+    for run in runs:
+        grouped.setdefault(run.get("model", "unknown"), []).append(run)
+    return {
+        model: sorted(items, key=lambda r: r["stage"])
+        for model, items in grouped.items()
+    }
+
+
+def chart_progression(runs: list[dict], *, model: str = "") -> pathlib.Path:
     """Headline metrics across stages — the closest thing this project has to a
     training curve, and the chart the report should lead with."""
     labels = [
         f"Stage {r['stage']}\n{r['system']}\n{r['measured']}/{r['questions']} measured"
-        + ("  ⚠ incomplete" if r["errors"] else "")
+        + ("  ⚠ incomplete" if _materially_incomplete(r) else "")
         for r in runs
     ]
     x = range(len(runs))
@@ -95,8 +120,9 @@ def chart_progression(runs: list[dict]) -> pathlib.Path:
     ax.set_xticklabels(labels, fontsize=9, color=INK)
     ax.set_ylim(-4, 104)
     ax.set_ylabel("percent")
+    subtitle = f" — {model}" if model else ""
     ax.set_title(
-        "Evaluation metrics by stage — same 95 questions throughout",
+        f"Evaluation metrics by stage{subtitle}\nsame 95 questions throughout",
         color=INK,
         fontsize=12,
         pad=14,
@@ -104,26 +130,30 @@ def chart_progression(runs: list[dict]) -> pathlib.Path:
     )
     _style(ax)
     ax.legend(frameon=False, fontsize=9, labelcolor=INK, ncols=2)
-    if any(r["errors"] for r in runs):
+    if any(_materially_incomplete(r) for r in runs):
         fig.text(
             0.01,
             0.01,
-            "⚠ A stage marked incomplete lost questions to provider rate limits. "
-            "Its rates cover measured questions only and may be biased by which "
-            "slices were lost.",
+            f"⚠ A stage marked incomplete lost over {MATERIAL_LOSS:.0%} of questions "
+            "to provider errors. Its rates cover measured questions only and may be "
+            "skewed toward whichever slices completed.",
             fontsize=8,
             color=MUTED,
         )
     fig.tight_layout(rect=(0, 0.04, 1, 1))
 
     CHARTS_DIR.mkdir(parents=True, exist_ok=True)
-    out = CHARTS_DIR / "metric-progression.png"
+    out = CHARTS_DIR / f"metric-progression{'-' + _slug(model) if model else ''}.png"
     fig.savefig(out, dpi=160)
     plt.close(fig)
     return out
 
 
-def chart_hallucination(runs: list[dict]) -> pathlib.Path:
+def _slug(text: str) -> str:
+    return text.replace("/", "-").replace(":", "-").replace(".", "-")
+
+
+def chart_hallucination(runs: list[dict], *, model: str = "") -> pathlib.Path:
     """The two numbers that matter most, side by side: fabricated citations and
     fabricated quotations."""
     labels = [f"Stage {r['stage']}" for r in runs]
@@ -154,13 +184,19 @@ def chart_hallucination(runs: list[dict]) -> pathlib.Path:
     ax.set_xticks(list(positions))
     ax.set_xticklabels(labels, color=INK)
     ax.set_ylabel("percent (lower is better)")
-    ax.set_title("Fabrication, by stage", color=INK, fontsize=12, pad=14, loc="left")
+    ax.set_title(
+        f"Fabrication, by stage{' — ' + model if model else ''}",
+        color=INK,
+        fontsize=12,
+        pad=14,
+        loc="left",
+    )
     _style(ax)
     ax.legend(frameon=False, fontsize=9, labelcolor=INK)
     fig.tight_layout()
 
     CHARTS_DIR.mkdir(parents=True, exist_ok=True)
-    out = CHARTS_DIR / "fabrication.png"
+    out = CHARTS_DIR / f"fabrication{'-' + _slug(model) if model else ''}.png"
     fig.savefig(out, dpi=160)
     plt.close(fig)
     return out
@@ -279,20 +315,21 @@ def chart_retrieval() -> pathlib.Path | None:
 
 
 def markdown_table(runs: list[dict]) -> str:
-    header = "| Stage | System | Measured | " + " | ".join(
+    header = "| Model | Stage | System | Measured | " + " | ".join(
         label for _, label in HEADLINE
     ) + " |"
-    divider = "|---" * (3 + len(HEADLINE)) + "|"
+    divider = "|---" * (4 + len(HEADLINE)) + "|"
     lines = [header, divider]
-    for run in runs:
-        cells = [
-            "n/a" if run.get(key) is None else f"{run[key] * 100:.1f}%"
-            for key, _ in HEADLINE
-        ]
-        lines.append(
-            f"| {run['stage']} | {run['system']} | "
-            f"{run['measured']}/{run['questions']} | " + " | ".join(cells) + " |"
-        )
+    for model, items in sorted(group_by_model(runs).items()):
+        for run in items:
+            cells = [
+                "n/a" if run.get(key) is None else f"{run[key] * 100:.1f}%"
+                for key, _ in HEADLINE
+            ]
+            lines.append(
+                f"| {model} | {run['stage']} | {run['system']} | "
+                f"{run['measured']}/{run['questions']} | " + " | ".join(cells) + " |"
+            )
     return "\n".join(lines)
 
 
@@ -302,10 +339,19 @@ def main() -> int:
         print("no runs found; run: python -m app.evaluation.harness --stage 1")
         return 2
 
-    written = [chart_progression(runs), chart_hallucination(runs)]
-    for optional in (chart_slices(runs), chart_retrieval()):
-        if optional:
-            written.append(optional)
+    written = []
+    grouped = group_by_model(runs)
+    for model, items in sorted(grouped.items()):
+        # One chart per model. Never one line across two.
+        label = model if len(grouped) > 1 else ""
+        written.append(chart_progression(items, model=label))
+        written.append(chart_hallucination(items, model=label))
+        slices = chart_slices(items)
+        if slices and len(grouped) == 1:
+            written.append(slices)
+    retrieval = chart_retrieval()
+    if retrieval:
+        written.append(retrieval)
 
     table = markdown_table(runs)
     CHARTS_DIR.mkdir(parents=True, exist_ok=True)
