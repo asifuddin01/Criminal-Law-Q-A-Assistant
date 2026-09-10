@@ -24,7 +24,7 @@ is the honest state of the repository, not a roadmap.
 | Source survey | Complete — [DATA_SOURCE.md](DATA_SOURCE.md) |
 | Evaluation methodology | Defined — [eval/README.md](eval/README.md) |
 | Backend service, provider abstraction | Working, tested |
-| Ingestion pipeline | Not built |
+| Ingestion pipeline | Parser working, tested — 522 sections, 599 amendments |
 | Retrieval and generation | Not built |
 | Evaluation dataset | Not built — deferred until section identifiers resolve |
 | Frontend | Not built |

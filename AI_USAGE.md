@@ -109,3 +109,26 @@ default was applied. The output looks identical whether a choice was reasoned or
 which makes unexamined defaults hard to spot by reading the code. Where the brief asks for
 technology *choices*, the alternatives have to be written down even when the default turns
 out to be right.
+
+### 4. Parser written from assumed structure, corrected by running it
+
+**What the assistant proposed.** A section detector based on the layout's apparent
+regularity — match a leading section number, treat unnumbered units as continuations.
+
+**Why it was wrong.** It was right about the layout and wrong about identity. Five
+source conventions break the mapping from unit to section, and the first version lost
+133 sections including section 54, while reporting a section count plausible enough to
+accept without checking.
+
+**How it was caught.** By comparing the full recovered section list against the source
+rather than inspecting a few sections. Every bug found in this pass was found by
+checking output against the whole document; none were visible in a sample.
+
+**Correction.** Four iterations, documented in EXPERIMENTS.md with the count at each
+stage, and a test per convention.
+
+**Lesson recorded.** A parser that produces well-formed output is not a parser that
+produces correct output, and an assistant will report success on the former. For a
+citation-grounded system the distinction is the whole product: a corpus with
+mislabelled sections retrieves fluently and cites confidently, and no retrieval metric
+detects it, because retrieval succeeded — against the wrong text.
