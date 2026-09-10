@@ -16,7 +16,7 @@ advance so that a stage producing no improvement is visibly a result rather than
 | Stage | Change | Status |
 |---|---|---|
 | 0 | Harness, gold dataset, no retrieval | Done |
-| 1 | LLM-only baseline | Not started |
+| 1 | LLM-only baseline | Done |
 | 2 | Naive fixed-size chunking, dense retrieval | Not started |
 | 3 | Legal-aware chunking on section boundaries | Not started |
 | 4 | Hybrid retrieval (BM25 + dense, RRF) | Not started |
@@ -34,9 +34,9 @@ claim cannot be made either way.
 Populated as stages complete. Retrieval recall, citation precision, answer faithfulness and
 refusal accuracy are reported per stage against the frozen gold set.
 
-| Stage | Recall@10 | Citation precision | Faithfulness | Refusal accuracy |
+| Stage | Recall@10 | Citation precision | Excerpt validity | Refusal accuracy |
 |---|---|---|---|---|
-| — | — | — | — | — |
+| 1 — LLM only | n/a (no retrieval) | 18.4% | **0.0%** | 85.0% |
 
 ## Entries
 
@@ -182,3 +182,98 @@ nothing is worse than no validator, because it is trusted.
 
 **Next step.** LLM-only baseline: run all 95 questions with no retrieval, to establish
 the hallucination floor and the refusal behaviour of a bare model.
+
+### 2026-09-10 — Stage 1: LLM-only baseline
+
+**Objective.** Establish the floor. A retrieval system that cannot beat an unassisted
+model on citation accuracy is not earning its complexity, and without this measurement
+that claim cannot be made in either direction.
+
+**Hypothesis.** A large instruction model will produce fluent, roughly correct answers
+about criminal procedure but cite unreliably, because it has no access to the text.
+
+**Configuration.** `openai/gpt-oss-120b` on Groq, temperature 0, 2500 max tokens,
+concurrency 2. All 95 gold questions, prompted to answer and cite exactly as the
+finished system will, so later stages compare like for like. No corpus, no retrieval.
+
+**Result.** 93 of 95 measured; 2 lost to rate limits and excluded from every rate.
+
+| Metric | Value |
+|---|---|
+| Citations made | 171 |
+| Citation existence | 86.6% |
+| Hallucinated citation rate | 13.5% |
+| Citation precision | 18.4% |
+| Answer hit rate | 25.7% |
+| **Excerpt validity** | **0.0%** (0 valid of 143 checked) |
+| Refusal accuracy | 85.0% |
+| Refused when unanswerable | 43.5% |
+| Refused when answerable | 1.4% |
+
+| Slice | n | Errors | Refusal accuracy | Has a correct citation |
+|---|---|---|---|---|
+| direct_lookup | 40 | 1 | 97.4% | 20.5% |
+| multi_section | 12 | 1 | 100% | 45.5% |
+| amended | 10 | 0 | 100% | 20.0% |
+| bangla | 10 | 0 | 100% | 30.0% |
+| unanswerable | 14 | 0 | 71.4% | — |
+| ambiguous | 9 | 0 | **0.0%** | — |
+
+**Failure cases examined.**
+
+*It answers from the wrong country's statute.* This is the dominant failure and it was
+not the one anticipated. The model consistently cites **Indian** Code of Criminal
+Procedure, 1973 numbering: s.41 for arrest without warrant (Bangladesh: s.54), s.57 for
+the twenty-four hour limit (s.61), s.437-439 for bail (s.496-498), s.321 for withdrawal
+from prosecution (s.494), s.374-386 for appeals. The substance is frequently right — it
+correctly states the twenty-four hour rule — while the citation points into a different
+statute. The two codes share ancestry, so a minority of numbers coincide (s.156 for
+investigation into cognizable cases is the same in both), which is why precision is 18%
+rather than near zero.
+
+*Every quoted excerpt is fabricated.* 143 quotes were checked against the text of the
+section they were attributed to. **None matched.** Not one. The quotations are fluent,
+plausible, correctly styled as statutory prose, and invented — for example
+`"Every person who is arrested without warrant shall be produced before a magistrate
+within twenty-four hours"` attributed to s.57, which is neither the wording nor the
+section. This is the single clearest argument for the citation validation gate, and it
+is a deterministic check requiring no judge.
+
+*It never asks for clarification.* On all nine ambiguous questions the model answered
+rather than asking what was meant: 0% refusal accuracy on that slice. "Can I get bail?"
+produced citations to three bail provisions with no idea what offence was involved.
+"What are my rights?" was answered outright. A system that never asks is a system that
+guesses.
+
+*It answers most questions it cannot answer.* Only 43.5% of unanswerable questions were
+declined, so the majority received a confident answer drawn from nothing. Conversely it
+almost never refuses wrongly (1.4%), so the bias is entirely toward answering.
+
+**The metric pair that matters.** Citation existence is 86.6% while precision is 18.4%.
+A naive hallucination check — does the cited section exist? — reports the system as
+mostly fine, on answers that are largely miscited. Existence and precision measure
+different things and both are needed. Excerpt validity, meanwhile, collapses to zero and
+is the most damning number in the table.
+
+**Two measurement bugs found by running this, not by reading it.**
+
+Errored questions were scored as correct decisions. An errored answer carries
+`refused=False`, so on an answerable question `refused != answerable` is true, and 40
+rate-limit failures counted as sound refusal judgment. Refusal accuracy read 83.2% over
+a run in which only 55 questions were actually measured. Rates now cover measured
+questions only and six tests pin the behaviour.
+
+Empty completions were scored as answers with no citations. `gpt-oss` spends completion
+tokens on reasoning before emitting content, so a budget sized for the answer alone
+returned an empty string with `finish_reason: stop`. At 900 tokens it produced 169
+characters of content; at 2500, a full answer. A truncation bug was presenting as a
+model result.
+
+**Decision.** Baseline recorded. These are the numbers every later stage is measured
+against, and three of them — 18.4% precision, 0.0% excerpt validity, 0% clarification
+on ambiguous questions — define what retrieval and the citation gate have to fix.
+
+**Next step.** Stage 2: naive fixed-size chunking with dense retrieval. Deliberately the
+crude version, so that stage 3's legal-aware chunking is measured against it rather than
+asserted to be better.
+
