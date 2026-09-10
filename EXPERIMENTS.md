@@ -17,8 +17,8 @@ advance so that a stage producing no improvement is visibly a result rather than
 |---|---|---|
 | 0 | Harness, gold dataset, no retrieval | Done |
 | 1 | LLM-only baseline | Done |
-| 2 | Naive fixed-size chunking, dense retrieval | Not started |
-| 3 | Legal-aware chunking on section boundaries | Not started |
+| 2 | Naive fixed-size chunking, dense retrieval | Retrieval measured; generation run incomplete |
+| 3 | Legal-aware chunking on section boundaries | Retrieval measured; generation pending quota |
 | 4 | Hybrid retrieval (BM25 + dense, RRF) | Not started |
 | 5 | Reranking | Not started |
 | 6 | Prompt and refusal behaviour | Not started |
@@ -37,6 +37,11 @@ refusal accuracy are reported per stage against the frozen gold set.
 | Stage | Recall@10 | Citation precision | Excerpt validity | Refusal accuracy |
 |---|---|---|---|---|
 | 1 — LLM only | n/a (no retrieval) | 18.4% | **0.0%** | 85.0% |
+| 2 — naive chunks | 52.8% (retrieval-only) | 52.1%* | 75.0%* | 77.4%* |
+| 3 — legal-aware chunks | **90.3%** (retrieval-only) | pending | pending | pending |
+
+\* Stage 2 generation figures are from an incomplete sweep (62 of 95 measured, Bangla
+slice lost entirely to rate limits) and are provisional. Retrieval figures are complete.
 
 ## Entries
 
@@ -276,4 +281,94 @@ on ambiguous questions — define what retrieval and the citation gate have to f
 **Next step.** Stage 2: naive fixed-size chunking with dense retrieval. Deliberately the
 crude version, so that stage 3's legal-aware chunking is measured against it rather than
 asserted to be better.
+
+### 2026-09-11 — Retrieval-only comparison of chunking strategies
+
+**Objective.** Measure the effect of chunking on retrieval, isolated from generation.
+
+**Hypothesis.** Chunking on section boundaries improves retrieval, because the section
+is the unit a question is asked about and the unit a citation names.
+
+**Method.** Both indexes built over the same act with the same embedding model, and the
+72 answerable gold questions run through each. **No model in the loop**, so any
+difference is attributable to chunking and nothing else — and it costs no provider
+quota, which turned out to matter (see the rate-limit entry below).
+
+**Result.** The largest single improvement measured so far.
+
+| Strategy | Chunks | R@1 | R@3 | R@5 | R@8 | R@10 | R@20 |
+|---|---|---|---|---|---|---|---|
+| naive_fixed_size | 465 | 20.8% | 40.3% | 41.7% | 51.4% | 52.8% | 58.3% |
+| legal_aware | 621 | **61.1%** | **76.4%** | **84.7%** | **88.9%** | **90.3%** | **95.8%** |
+
+Recall@1 nearly triples. Recall@10 rises from roughly half the questions to nine in ten.
+Since recall is the ceiling on the whole system — generation cannot cite a section
+retrieval never returned — the naive pipeline was capped at 52.8% no matter how good the
+prompt or the model.
+
+| Slice | naive R@10 | legal-aware R@10 |
+|---|---|---|
+| direct_lookup | 52.5% | **100%** |
+| multi_section | 83.3% | **100%** |
+| amended | 30.0% | **90.0%** |
+| bangla | 40.0% | **40.0%** |
+
+**Failure cases examined.**
+
+*Half the naive strategy's successes were fragile.* Of the questions it did answer, 26
+had their gold section delivered by a chunk that crosses a section boundary — the right
+words arriving under a label that may belong to a neighbouring provision. The
+legal-aware strategy: zero. So the gap is wider than recall alone shows, because a
+boundary-crossing hit is a hit whose citation cannot be trusted.
+
+*The Bangla slice did not move at all.* 40.0% under both strategies — the only slice
+where legal-aware chunking changed nothing. This is informative rather than
+disappointing: cross-lingual retrieval is not limited by how the text is divided but by
+whether the embedding model places a Bangla question near English statutory text. It is
+a different bottleneck needing a different fix, and no amount of chunking work will
+touch it. Candidate responses: a stronger multilingual embedding model, query
+translation before retrieval, or ingesting the Bangla texts of the acts. To be settled
+by measurement, not chosen now.
+
+*Amended provisions were the naive strategy's worst non-Bangla slice* at 30%. Amended
+sections carry dense footnote markers and bracketed insertions, so their text is
+irregular; fixed windows cut through those structures where section-bounded chunks do
+not.
+
+**Decision.** Legal-aware chunking adopted. ADR 0002's reasoning is now supported by a
+measurement rather than an argument.
+
+**Next step.** Stage 3 generation, once provider quota resets.
+
+### 2026-09-11 — Provider rate limits, and a run that looked like a result
+
+**What happened.** The stage 2 generation sweep failed 34 of 95 questions. The failures
+were not distributed randomly: because the harness runs the dataset in order and the
+budget depletes as it goes, they landed on whichever slices come last. The ambiguous
+slice lost 9 of 9 and the Bangla slice 10 of 10, while direct_lookup lost 2 of 40.
+
+The error accounting added in stage 1 correctly excluded those questions from the rates.
+That was not enough. Excluding a *biased* sample still leaves a biased measurement:
+"refused when unanswerable: 100%" was computed over three questions, and two slices had
+no data at all. The run printed a clean-looking table.
+
+**Diagnosis.** Two separate limits, discovered in that order:
+
+- **8,000 tokens per minute**, identical across every model on the catalogue, so there
+  is no model to switch to for headroom. Retrieval context of roughly 2,900 tokens per
+  question exhausts it within a minute.
+- **200,000 tokens per day**, and this one is **per model**. `gpt-oss-120b` was spent
+  (199,180 used) while `gpt-oss-20b` and `qwen3.8-27b` remained fresh.
+
+**Correction.** A continuously refilling token bucket paces requests against the
+per-minute budget, reserving on the prompt plus a realistic completion rather than the
+max_tokens ceiling, and reconciling against reported usage afterwards. The per-day limit
+cannot be paced around, so the harness now detects it, stops immediately, and **writes no
+results** — a partial sweep is worse than no sweep, because it looks like a measurement.
+
+**What this changed about method.** The retrieval-only evaluation above was built in
+response: it answers the question that actually mattered — does legal-aware chunking
+help? — with no model in the loop, no quota consumed, and no confound from generation.
+The constraint produced a better experiment than the one originally planned, because it
+forced the variable to be isolated.
 

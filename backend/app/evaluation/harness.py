@@ -68,6 +68,20 @@ def _write_cache(key: str, answer: Answer) -> None:
     )
 
 
+class DailyBudgetExhausted(RuntimeError):
+    """The provider's per-day token allowance is spent.
+
+    Distinguished from a per-minute limit because they call for opposite responses:
+    a per-minute limit is waited out within a run, a per-day one cannot be, and
+    continuing only converts the remainder of the dataset into failures that land on
+    whichever slices happen to come last.
+    """
+
+
+def _is_daily_limit(message: str) -> bool:
+    return "tokens per day" in message.lower() or "TPD" in message
+
+
 async def _run_one(
     system, question: GoldQuestion, model: str, semaphore, use_cache: bool
 ) -> tuple[Answer, bool]:
@@ -79,6 +93,9 @@ async def _run_one(
 
     async with semaphore:
         answer = await system.answer(question.question)
+
+    if answer.error and _is_daily_limit(answer.error):
+        raise DailyBudgetExhausted(answer.error)
 
     if use_cache and not answer.error:
         _write_cache(key, answer)
@@ -128,9 +145,19 @@ async def run_stage(
 
     semaphore = asyncio.Semaphore(concurrency)
     started = time.perf_counter()
-    results = await asyncio.gather(
-        *(_run_one(system, q, model, semaphore, use_cache) for q in questions)
-    )
+    try:
+        results = await asyncio.gather(
+            *(_run_one(system, q, model, semaphore, use_cache) for q in questions)
+        )
+    except DailyBudgetExhausted as exhausted:
+        print(f"\nSTOPPED: {exhausted}")
+        print(
+            "The per-day token allowance is spent. Answers already obtained are "
+            "cached, so re-running after the reset resumes rather than restarts.\n"
+            "No results were written: a partial sweep biases whichever slices come "
+            "last in the dataset."
+        )
+        return 3
     elapsed = time.perf_counter() - started
 
     scores: list[QuestionScore] = []
