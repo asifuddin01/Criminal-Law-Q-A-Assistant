@@ -170,7 +170,7 @@ re-embeds only sections whose hash changed.
 
 | Layer | Choice | Reason |
 |---|---|---|
-| Backend | FastAPI, Python 3.12 | Async, typed, first-class OpenAPI |
+| Backend | FastAPI, Python 3.12 | Async, typed, first-class OpenAPI. Alternatives examined in [ADR 0008](adr/0008-web-framework-choice.md) |
 | Frontend | Next.js | Streaming answers, straightforward deploy |
 | Generation | Groq free tier, Ollama fallback | One key covers text, speech and vision; local path keeps the demo alive offline. [ADR 0003](adr/0003-llm-provider-strategy.md) |
 | Embeddings | multilingual-e5-small | Bangla questions against English text |

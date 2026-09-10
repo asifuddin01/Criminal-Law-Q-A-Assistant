@@ -88,3 +88,24 @@ pipeline, rather than writing the pipeline and debugging its output.
 **Why it is recorded here.** It is the failure mode this project is most exposed to. A
 citation-grounded legal assistant that cites confidently and wrongly is worse than one that
 declines to answer, and this class of bug produces exactly that.
+
+### 3. Web framework adopted by default, not by choice — corrected
+
+**What happened.** The initial scaffold used FastAPI because it is the assistant's default
+for a Python API. No alternatives were examined and no rationale was recorded, so a
+technology choice the brief explicitly asks about was in the repository as an unexamined
+habit.
+
+**How it was caught.** By being asked directly whether a better Python framework existed.
+
+**Correction.** [ADR 0008](docs/adr/0008-web-framework-choice.md) now examines Litestar,
+Django Ninja, Flask/Quart and three others against the system's actual requirements. The
+decision did not change — FastAPI is retained — but it is now a decision rather than a
+default, with the rejected alternatives and the reason for each recorded, including the one
+case (Django Ninja, if corpus administration grows) that would justify revisiting it.
+
+**Lesson recorded.** An AI assistant supplies defaults fluently and rarely flags that a
+default was applied. The output looks identical whether a choice was reasoned or reflexive,
+which makes unexamined defaults hard to spot by reading the code. Where the brief asks for
+technology *choices*, the alternatives have to be written down even when the default turns
+out to be right.

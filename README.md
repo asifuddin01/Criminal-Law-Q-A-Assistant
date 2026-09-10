@@ -60,7 +60,7 @@ covers every input path.
 
 | Layer | Choice |
 |---|---|
-| Backend | FastAPI, Python 3.12 |
+| Backend | FastAPI, Python 3.12 ([why](docs/adr/0008-web-framework-choice.md)) |
 | Frontend | Next.js |
 | Generation | Groq free tier, Ollama `qwen2.5:3b-instruct` fallback |
 | Speech | `whisper-large-v3` |
