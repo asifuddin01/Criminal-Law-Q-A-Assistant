@@ -40,6 +40,7 @@ def _build_groq(settings: Settings) -> LLMProvider:
         default_max_tokens=settings.max_tokens,
         timeout=settings.request_timeout_seconds,
         max_retries=settings.request_max_retries,
+        tokens_per_minute=settings.tokens_per_minute,
     )
 
 

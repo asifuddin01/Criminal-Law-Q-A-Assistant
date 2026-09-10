@@ -18,6 +18,7 @@ from app.llm.base import (
     LLMProvider,
     ProviderUnavailable,
 )
+from app.llm.rate_limit import TokenBucket, estimate_tokens
 
 
 class OpenAICompatibleProvider(LLMProvider):
@@ -35,12 +36,14 @@ class OpenAICompatibleProvider(LLMProvider):
         default_max_tokens: int = 1024,
         timeout: float = 60.0,
         max_retries: int = 6,
+        tokens_per_minute: int = 0,
     ) -> None:
         self.name = name
         self._chat_model = chat_model
         self._vision_model = vision_model
         self._transcription_model = transcription_model
         self._capabilities = capabilities
+        self._bucket = TokenBucket(tokens_per_minute) if tokens_per_minute else None
         self._default_temperature = default_temperature
         self._default_max_tokens = default_max_tokens
         self._client = AsyncOpenAI(
@@ -61,6 +64,18 @@ class OpenAICompatibleProvider(LLMProvider):
         temperature: float | None = None,
         max_tokens: int | None = None,
     ) -> Completion:
+        budget = self._default_max_tokens if max_tokens is None else max_tokens
+        reserved = 0
+        if self._bucket is not None:
+            # Reserve on the prompt plus a realistic completion, not the full
+            # max_tokens: reserving the ceiling would idle most of the budget, since
+            # answers here run far shorter than the cap that exists for reasoning
+            # headroom. The reconciliation below corrects either way.
+            estimate = sum(estimate_tokens(m.content) for m in messages) + min(
+                budget, 900
+            )
+            reserved = await self._bucket.acquire(estimate)
+
         try:
             response = await self._client.chat.completions.create(
                 model=self._chat_model,
@@ -68,12 +83,17 @@ class OpenAICompatibleProvider(LLMProvider):
                 temperature=(
                     self._default_temperature if temperature is None else temperature
                 ),
-                max_tokens=self._default_max_tokens if max_tokens is None else max_tokens,
+                max_tokens=budget,
             )
         except (APIConnectionError, APIStatusError) as exc:
             raise ProviderUnavailable(f"{self.name}: {exc}") from exc
 
         usage = response.usage
+        if self._bucket is not None:
+            await self._bucket.reconcile(
+                reserved, usage.total_tokens if usage else reserved
+            )
+
         return Completion(
             text=response.choices[0].message.content or "",
             model=response.model,

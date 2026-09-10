@@ -50,6 +50,11 @@ class Settings(BaseSettings):
     # sweep. The client retries 429s with backoff, honouring Retry-After.
     request_max_retries: int = 6
 
+    # Groq's free tier allows 8,000 tokens per minute across models. Requests are
+    # paced client-side to stay under it; retries alone cannot help when the budget
+    # is genuinely spent. Zero disables pacing.
+    tokens_per_minute: int = 8000
+
 
 @lru_cache
 def get_settings() -> Settings:
