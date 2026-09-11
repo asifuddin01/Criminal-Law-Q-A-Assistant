@@ -331,3 +331,39 @@ dry-run made it look safe.
 The failure was silent in the only way that matters here: nothing errored, the indexes
 were valid, the tests passed, and the evaluation would have reported confidently on a
 comparison that no longer existed.
+
+### 12. Three features that existed only in the documentation
+
+**What happened.** Checking the README against the code rather than against my memory of
+writing it turned up three capabilities described as though built, and not built:
+hybrid BM25 + dense retrieval fused by reciprocal rank, named in two technology tables
+and listed as stage 4; a faithfulness metric scored by an LLM judge against a rubric;
+and streaming answers in the frontend.
+
+Each was written early, in the design documents, in the present tense — the tense
+design documents are written in. The build then went a different way for reasons that
+were good, and the sentence describing the original plan stayed exactly where it was.
+Stage 4 became the full corpus plus structured offence lookup, which answers the
+question BM25 was aimed at more directly. Streaming is not merely absent but impossible
+here, because the citation gate must see a complete answer before any of it is shown.
+
+**How it was caught.** By grepping the documentation for its own claims and looking for
+the implementation of each, rather than re-reading the prose. Re-reading it had not
+worked: I had read that technology table several times while editing rows next to those
+ones.
+
+**Correction.** All three corrected in place, with the reasoning for the change recorded
+where the claim used to be, and the dropped plan listed as untried rather than quietly
+deleted.
+
+**Lesson recorded.** This is the assistant failure mode with the longest fuse. Writing an
+architecture document before the code is the right order, and an assistant writes such a
+document fluently and in the present tense. Every later edit is local — a row here, a
+paragraph there — and nothing in the editing process ever asks whether the surrounding
+sentences are still true. The result reads as a description and functions as a wish.
+
+The tell is tense and specificity together: a design document that says what the system
+*does*, in detail, about a part nobody has pointed at in weeks. The check is mechanical
+and takes minutes — grep the docs for each capability claimed, then grep the source for
+it — and it is worth running before anyone else reads the repository, because the cost
+of being caught overstating is not proportional to the size of the overstatement.
