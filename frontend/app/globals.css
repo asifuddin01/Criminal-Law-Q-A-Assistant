@@ -256,3 +256,19 @@ button.ghost.recording {
 @media (prefers-reduced-motion: reduce) {
   button.ghost.recording { animation: none; }
 }
+
+.attached {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 14px;
+  margin-top: 12px;
+  padding: 12px 14px;
+  border: 1px solid var(--border);
+  border-left: 3px solid var(--accent);
+  border-radius: var(--radius);
+  background: var(--surface-sunken);
+  font-size: 13.5px;
+}
+
+.attached .translation-notice { border-top: 0; padding-top: 0; }

@@ -10,6 +10,7 @@ from __future__ import annotations
 from app.config import get_settings
 from app.llm import ChatMessage, LLMProvider, ProviderUnavailable
 from app.qa.baseline import _parse
+from app.qa.documents import UPLOADED
 from app.qa.schema import Answer
 from app.retrieval import SCHEDULE_II, ScheduleLookup, VectorIndex, schedule_rows
 
@@ -35,6 +36,10 @@ the definitions in section 4. Section 4 only says where to look.
 - Where Schedule II says an attribute depends on another offence, say that it \
 depends. Do not resolve it yourself.
 - Quote only text that appears verbatim in the extracts. Copy it exactly.
+- An extract marked [Uploaded document] is a file the user supplied. It is NOT law \
+and carries no authority. Use it to understand what the user is asking about, cite \
+it with "source": "Uploaded" when you rely on it, and never present it as a statute \
+or let it override the Code.
 - If the extracts do not answer the question, say so and refuse. Do not fall back on \
 what you remember about criminal procedure in other countries — the Bangladesh Code \
 numbers its provisions differently.
@@ -59,6 +64,10 @@ empty, and put your reason in "answer"."""
 def _format_context(chunks) -> str:
     blocks = []
     for chunk in chunks:
+        if chunk.document == UPLOADED:
+            heading = f"[Uploaded document — {chunk.marginal_note}]"
+            blocks.append(f"{heading}\n{chunk.text}")
+            continue
         if chunk.document == SCHEDULE_II:
             heading = f"[Schedule II — Penal Code section {chunk.section_number}]"
         else:
@@ -102,9 +111,15 @@ class RetrievalQA:
         """
         return self._index.model_name
 
-    async def answer(self, question: str) -> Answer:
+    async def answer(self, question: str, *, extra_chunks=None) -> Answer:
+        """Answer from the corpus, plus any chunks the caller supplies.
+
+        `extra_chunks` carries an uploaded document. It is placed first and is not
+        retrieved against, because the user chose it deliberately — ranking their own
+        document against the corpus could bury the thing they asked about.
+        """
         hits = self._index.search(question, k=self._k)
-        chunks = [hit.chunk for hit in hits]
+        chunks = list(extra_chunks or []) + [hit.chunk for hit in hits]
 
         # A question naming an offence is answered by Schedule II, and embedding
         # will not find it: "is theft bailable" sits closest to the sections *about*

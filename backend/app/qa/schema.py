@@ -47,6 +47,9 @@ CRPC = "CrPC"
 SCHEDULE_II = "ScheduleII"
 
 
+UPLOADED = "Uploaded"
+
+
 def normalize_source(raw: str) -> str:
     """Map whatever the model wrote to a document code.
 
@@ -54,7 +57,12 @@ def normalize_source(raw: str) -> str:
     "Schedule II of the CrPC" and similar. The code is what everything downstream
     keys on, so the variation is absorbed here rather than in each consumer.
     """
-    return SCHEDULE_II if "schedule" in (raw or "").lower() else CRPC
+    lowered = (raw or "").lower()
+    if "schedule" in lowered:
+        return SCHEDULE_II
+    if "upload" in lowered or "document" in lowered:
+        return UPLOADED
+    return CRPC
 
 
 @dataclass(frozen=True, slots=True)

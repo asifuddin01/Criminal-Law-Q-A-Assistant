@@ -20,7 +20,7 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 
 from app.ingest.models import Act, ScheduleEntry
-from app.qa.schema import CRPC, Answer
+from app.qa.schema import CRPC, UPLOADED, Answer
 from app.retrieval.chunking import schedule_rows
 
 SOURCE_URL = "https://bdlaws.minlaw.gov.bd/act-{act_id}/section-{number}.html"
@@ -65,6 +65,7 @@ def validate(
     corpus: Act,
     *,
     schedule: list[ScheduleEntry] | None = None,
+    uploaded: dict[str, str] | None = None,
     retrieved_sections: list[str] | None = None,
     require_retrieved: bool = True,
 ) -> ValidationResult:
@@ -93,7 +94,20 @@ def validate(
         is_schedule = citation.is_schedule
         document = citation.document
 
-        if is_schedule:
+        if document == UPLOADED:
+            body = (uploaded or {}).get(number, "")
+            if not body:
+                result.dropped.append(
+                    {
+                        "section": number,
+                        "source": document,
+                        "reason": "no such passage in the uploaded document",
+                    }
+                )
+                continue
+            note = "uploaded document"
+            part, chapter, url = None, None, ""
+        elif is_schedule:
             entry = schedule_by_section.get(number)
             if entry is None:
                 result.dropped.append(

@@ -55,5 +55,14 @@ export interface Transcription {
   seconds: number;
 }
 
+export interface UploadedDocument {
+  document_id: string;
+  filename: string;
+  pages: number;
+  characters: number;
+  preview: string;
+  notice: string;
+}
+
 export const API_URL =
   process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8010";

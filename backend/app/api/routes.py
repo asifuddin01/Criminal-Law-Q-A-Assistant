@@ -12,12 +12,14 @@ from app.api.limits import AnswerCache, SlidingWindowLimiter, caller_key
 from app.config import get_settings
 from app.legal import DISCLAIMER, SOURCE_ATTRIBUTION
 from app.llm import Capability, CapabilityUnavailable, ProviderUnavailable, get_provider
+from app.qa.documents import DocumentStore, UnreadableDocument
 from app.qa.translate import NOTICE, UnsupportedLanguage, translate
 from app.qa.validation import validate
 from app.schemas import (
     AskRequest,
     AskResponse,
     CitationOut,
+    DocumentResponse,
     DroppedCitation,
     HealthResponse,
     MetaResponse,
@@ -33,6 +35,13 @@ router = APIRouter()
 _settings = get_settings()
 _limiter = SlidingWindowLimiter(_settings.rate_limit_per_hour)
 _answers = AnswerCache(_settings.answer_cache_size)
+_documents = DocumentStore()
+
+UPLOAD_NOTICE = (
+    "This document is not part of the legal corpus and carries no authority. It is "
+    "used only to answer questions that reference it, is never cited as law, and is "
+    "held in memory rather than stored."
+)
 
 
 @router.get("/health", response_model=HealthResponse, tags=["system"])
@@ -93,18 +102,41 @@ async def ask(request: AskRequest, http_request: Request) -> AskResponse:
     `dropped_citations` rather than silently dropped, and an answer left with
     nothing substantiated behind it becomes a refusal.
     """
+    # Resolved before anything expensive: a document that is gone should say so
+    # whatever else is misconfigured, and loading the corpus first would report the
+    # wrong problem.
+    extra_chunks = []
+    if request.document_id:
+        document = _documents.get(request.document_id)
+        if document is None:
+            raise HTTPException(
+                status_code=404,
+                detail=(
+                    "that document is not available — uploads are held in memory "
+                    "and are lost when the service restarts. Upload it again."
+                ),
+            )
+        extra_chunks = document.chunks()
+
     try:
         corpus = get_corpus()
         schedule = get_schedule()
         system = get_qa()
     except CorpusUnavailable as exc:
         raise HTTPException(status_code=503, detail=str(exc)) from exc
+    except RuntimeError as exc:
+        # A provider that cannot be constructed — no credential, usually. The same
+        # reasoning as /meta: report the misconfiguration rather than failing as an
+        # unexplained server error.
+        raise HTTPException(status_code=503, detail=str(exc)) from exc
 
     # Cache first. A repeat question costs nothing, so it should not consume an
     # allowance either — the limit exists to protect the token budget, and a cache
     # hit spends none of it.
     cache_key = _answers.key(
-        request.question, model=system.model_name, index=system.index_name
+        request.question,
+        model=system.model_name,
+        index=f"{system.index_name}|{request.document_id or ''}",
     )
     cached = _answers.get(cache_key)
     if cached is not None:
@@ -128,7 +160,7 @@ async def ask(request: AskRequest, http_request: Request) -> AskResponse:
         )
 
     try:
-        answer = await system.answer(request.question)
+        answer = await system.answer(request.question, extra_chunks=extra_chunks)
     except ProviderUnavailable as exc:
         # The request cost nothing, so it should not cost an allowance either.
         _limiter.forget(caller)
@@ -144,6 +176,7 @@ async def ask(request: AskRequest, http_request: Request) -> AskResponse:
         answer,
         corpus,
         schedule=schedule,
+        uploaded={c.section_number: c.text for c in extra_chunks},
         retrieved_sections=answer.retrieved_sections,
     )
 
@@ -305,4 +338,38 @@ async def transcribe(
         language=language,
         model=getattr(provider, "_transcription_model", ""),
         seconds=round(time.perf_counter() - started, 2),
+    )
+
+
+@router.post("/documents", response_model=DocumentResponse, tags=["qa"])
+async def upload_document(
+    file: Annotated[UploadFile, File(description="A PDF or plain text file")],
+) -> DocumentResponse:
+    """Accept a document to ask questions against.
+
+    This does not add anything to the legal corpus. Adding an act is an ingestion
+    step run against a published source, not something a visitor can do by uploading
+    a file — a system that let anyone add text and then cited it as law would have no
+    grounding worth the name.
+
+    Text is extracted, not OCR'd, so a scanned PDF with no text layer is refused with
+    that explanation rather than accepted and silently empty.
+    """
+    payload = await file.read()
+    try:
+        document = _documents.add(
+            payload,
+            filename=file.filename or "document",
+            media_type=file.content_type or "",
+        )
+    except UnreadableDocument as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+
+    return DocumentResponse(
+        document_id=document.document_id,
+        filename=document.filename,
+        pages=document.pages,
+        characters=document.characters,
+        preview=document.preview(),
+        notice=UPLOAD_NOTICE,
     )

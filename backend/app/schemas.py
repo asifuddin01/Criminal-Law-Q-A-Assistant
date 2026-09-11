@@ -39,6 +39,14 @@ class MetaResponse(BaseModel):
 
 class AskRequest(BaseModel):
     question: str = Field(min_length=3, max_length=2000)
+    document_id: str | None = Field(
+        default=None,
+        description=(
+            "An uploaded document to answer against, from POST /api/documents. "
+            "Its text is supplied to the model alongside the statute and is never "
+            "treated as law."
+        ),
+    )
     language: str = Field(
         default="en", description="ISO code of the question's language; 'bn' for Bangla"
     )
@@ -140,3 +148,19 @@ class TranscriptionResponse(BaseModel):
     )
     model: str = ""
     seconds: float = Field(description="Wall-clock time spent transcribing")
+
+
+class DocumentResponse(BaseModel):
+    """An uploaded document, ready to ask questions against.
+
+    Uploading does not add anything to the legal corpus. The document is held in
+    memory for this deployment's lifetime and is used only to answer questions that
+    name it — it has no authority, and the system has no way to establish any.
+    """
+
+    document_id: str
+    filename: str
+    pages: int
+    characters: int
+    preview: str = Field(description="Opening of the extracted text, for confirmation")
+    notice: str

@@ -8,6 +8,7 @@ import {
   type Meta,
   type Transcription,
   type Translation,
+  type UploadedDocument,
 } from "./types";
 
 const EXAMPLES = [
@@ -29,6 +30,9 @@ export default function Page() {
   const [recording, setRecording] = useState(false);
   const [transcribing, setTranscribing] = useState(false);
   const recorder = useRef<MediaRecorder | null>(null);
+  const [document_, setDocument] = useState<UploadedDocument | null>(null);
+  const [uploading, setUploading] = useState(false);
+  const fileInput = useRef<HTMLInputElement | null>(null);
 
   useEffect(() => {
     fetch(`${API_URL}/api/meta`)
@@ -51,7 +55,11 @@ export default function Page() {
         const response = await fetch(`${API_URL}/api/ask`, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ question: trimmed, language: "en" }),
+          body: JSON.stringify({
+            question: trimmed,
+            language: "en",
+            document_id: document_?.document_id ?? null,
+          }),
         });
         const body = await response.json();
         if (!response.ok) {
@@ -67,7 +75,7 @@ export default function Page() {
         setBusy(false);
       }
     },
-    [busy],
+    [busy, document_],
   );
 
   const toggleTranslation = useCallback(async () => {
@@ -102,6 +110,30 @@ export default function Page() {
   }, [result, translation]);
 
   const canSpeak = meta?.provider.capabilities.includes("transcription") ?? false;
+
+  const upload = useCallback(async (file: File) => {
+    setUploading(true);
+    setError(null);
+    try {
+      const form = new FormData();
+      form.append("file", file);
+      const response = await fetch(`${API_URL}/api/documents`, {
+        method: "POST",
+        body: form,
+      });
+      const body = await response.json();
+      if (response.ok) {
+        setDocument(body as UploadedDocument);
+      } else {
+        setError(body?.detail ?? "That file could not be read.");
+      }
+    } catch {
+      setError("Could not reach the upload endpoint.");
+    } finally {
+      setUploading(false);
+      if (fileInput.current) fileInput.current.value = "";
+    }
+  }, []);
 
   const stopRecording = useCallback(() => {
     recorder.current?.stop();
@@ -198,6 +230,25 @@ export default function Page() {
           <button type="submit" disabled={busy || question.trim().length < 3}>
             {busy ? "Searching the Code…" : "Ask"}
           </button>
+          <button
+            type="button"
+            className="ghost"
+            onClick={() => fileInput.current?.click()}
+            disabled={uploading || busy}
+            title="Attach a PDF or text file to ask about"
+          >
+            {uploading ? "Reading…" : "📎 Attach"}
+          </button>
+          <input
+            ref={fileInput}
+            type="file"
+            accept=".pdf,.txt,.md,application/pdf,text/plain"
+            hidden
+            onChange={(event) => {
+              const file = event.target.files?.[0];
+              if (file) void upload(file);
+            }}
+          />
           {canSpeak && (
             <button
               type="button"
@@ -218,6 +269,27 @@ export default function Page() {
             {meta && ` · ${meta.provider.chat_model}`}
           </span>
         </div>
+        {document_ && (
+          <div className="attached">
+            <div>
+              <strong>{document_.filename}</strong>{" "}
+              <span className="hint">
+                {document_.pages} page{document_.pages === 1 ? "" : "s"},{" "}
+                {document_.characters.toLocaleString()} characters
+              </span>
+              <p className="translation-notice" style={{ marginTop: 8 }}>
+                {document_.notice}
+              </p>
+            </div>
+            <button
+              type="button"
+              className="ghost"
+              onClick={() => setDocument(null)}
+            >
+              Remove
+            </button>
+          </div>
+        )}
         <div className="examples">
           {EXAMPLES.map((example) => (
             <button
