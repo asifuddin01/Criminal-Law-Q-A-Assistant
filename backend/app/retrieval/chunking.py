@@ -7,6 +7,7 @@ against a measurement, not against an assertion.
 
 from __future__ import annotations
 
+import hashlib
 import re
 from dataclasses import dataclass
 
@@ -54,6 +55,17 @@ class Chunk:
     def identifier(self) -> str:
         """Stable key for gold labels and retrieval metrics."""
         return f"{self.document}:{self.section_number}"
+
+    @property
+    def content_hash(self) -> str:
+        """Hash of the text alone.
+
+        An incremental update compares this to decide what to re-embed. It covers
+        the text and nothing else, because the embedding depends on the text and
+        nothing else — a chunk whose part or chapter label was corrected does not
+        need a new vector.
+        """
+        return hashlib.sha256(self.text.encode("utf-8")).hexdigest()
 
 
 def naive_fixed_size(

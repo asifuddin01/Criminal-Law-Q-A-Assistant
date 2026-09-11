@@ -462,3 +462,49 @@ That is the concrete case for refusing to write results from an incomplete sweep
 the partial numbers been reported, the system would have looked six points better at
 the one behaviour it is least good at.
 
+### 2026-09-12 — Incremental document update
+
+**Objective.** Demonstrate that the corpus can gain, replace and lose documents without
+rebuilding the index, and measure what each operation actually costs.
+
+**Method.** Chunks carry a stable id and a hash of their text. An update re-derives the
+chunk set every ingested source implies and compares it to the index: unchanged chunks
+keep the vectors they already have, and only new or altered ones are embedded.
+
+**Result.**
+
+| Operation | Embedded | Reused | Time |
+|---|---|---|---|
+| Full build, Code only | 621 of 621 | — | 19.3 s |
+| Add Schedule II | 376 of 997 | 62% | 14.0 s |
+| Amend one section | 1 of 997 | 99.9% | under 0.1 s |
+
+Amending section 61 — changing "twenty-four hours" to "forty-eight hours", as bdlaws
+would publish after an amendment — re-embedded exactly one chunk, and the indexed text
+changed accordingly. Reverting it re-embedded exactly one chunk again.
+
+**A note on how this was demonstrated.** The intended demonstration was to add a real
+related act, the Evidence Act 1872, live from bdlaws. The site became entirely
+unreachable while this was being built — `http 000` after 100 seconds, including for
+`act-print-75.html`, which had been fetched successfully the day before.
+
+The demonstration was therefore rebuilt to use only local sources, which turned out to
+be the better design. A demonstration of the update mechanism should not depend on a
+third party being up, and a reviewer running it a week from now would otherwise see a
+timeout rather than a result.
+
+**Failure case examined.** The first run reported "100% reused" alongside "embedded 1 of
+997". Both were produced by the same function, and the percentage was simply
+996/997 rounded. A summary claiming nothing was re-embedded, printed next to a count
+saying one chunk was, is the kind of small inconsistency that makes a reader reasonably
+distrust every other number on the page. Proportions above 99.5% now render to one
+decimal place whenever anything was embedded.
+
+The same run also printed section 497 as the top result for "is theft a bailable
+offence?", because the demo searched the raw index rather than going through the
+offence lookup. That was accurate about the index and misleading about the system, so
+the demo now shows both paths and says why each exists.
+
+**Decision.** Deliverable §08.6 satisfied. The update path is the same code the corpus
+uses in normal operation, not a demonstration script alongside it.
+

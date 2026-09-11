@@ -191,11 +191,32 @@ Membership follows a stated criterion rather than intuition: an act is in scope 
 incorporates it by normative reference, or if it displaces CrPC procedure via a non-obstante
 clause ([ADR 0007](docs/adr/0007-inclusion-criterion-for-related-laws.md)).
 
-**Updating.** Sections carry a content hash, so re-ingesting an act re-embeds only what
-changed. Adding a related act is the same operation as updating one, which is what makes the
-incremental-update demonstration a normal code path rather than a special case. Each addition
-is followed by an evaluation run, so an act that degrades retrieval on core CrPC questions is
-detected rather than presumed harmless.
+**Updating.** The index converges on whatever sources are present in `data/raw`, so adding
+an act, replacing one with a newer consolidation, and removing one are the same operation:
+
+```bash
+cd backend && uv run python -m app.retrieval.update --dry-run   # what would change
+cd backend && uv run python -m app.retrieval.update             # apply it
+```
+
+Chunks are matched on a stable id and compared on a hash of their text, so only new or
+altered chunks are embedded. A source republished with one provision amended re-embeds one
+provision.
+
+**Demonstration** ([transcript](docs/incremental-update-demo.txt)):
+
+```bash
+cd backend && uv run python -m app.retrieval.demo
+```
+
+| Operation | Embedded | Reused | Time |
+|---|---|---|---|
+| Full build, Code only | 621 of 621 | — | 19.3 s |
+| Add Schedule II (376 rows) | 376 of 997 | 62% | 14.0 s |
+| Amend one section | **1 of 997** | **99.9%** | < 0.1 s |
+
+Each addition is followed by an evaluation run, so an act that degrades retrieval on core
+CrPC questions is detected rather than presumed harmless.
 
 ## Evaluation
 
