@@ -18,7 +18,17 @@ determine the next change.
 | **Citation precision** | Of sections cited in the answer, the fraction that are both correct and actually present in the retrieved context | Directly measures the failure this system exists to avoid: confident citation of the wrong provision. |
 | **Answer hit rate** | Fraction of answerable questions where the answer cites at least one gold section | Whether the right provision reached the answer, not just the retrieved set. |
 | **Refusal accuracy** | Correct refusals plus correct answers, over all questions, on the unanswerable slice | The brief requires handling of ambiguous and unsupported questions. Unmeasured refusal behaviour tends to collapse into either never refusing or refusing everything. |
-| **Excerpt validity** | Fraction of quoted excerpts that are exact substrings of stored source text | A cheap, deterministic check that catches fabricated quotations without a model in the loop. |
+| **Excerpt validity** | Fraction of quoted excerpts that are the cited section's own words | A cheap, deterministic check that catches fabricated quotations without a model in the loop. |
+| **Excerpt validity (as written)** | The same, counting only excerpts that matched with no allowance made | Published beside the first so that the cost of each allowance is visible rather than absorbed. |
+| **Citation existence** | Of sections cited, the fraction that exist in the document the citation names | Section numbers repeat across acts, so a citation resolved against the wrong document would be confirmed as readily as a right one. |
+
+"Its own words" is not quite a raw substring test, and the difference is worth stating.
+bdlaws' amendment brackets and its `[* * *]` marks are canonicalised away on both sides; an
+ellipsis is read as an elision and each segment checked in order; and a citation label the
+model copied in front of the text is trimmed before the remainder is required to match.
+None of that admits a word the section does not contain — the stage 1 baseline, quoting from
+memory, is rescued by none of it — and the reasoning is in
+[ADR 0011](../docs/adr/0011-what-counts-as-a-verbatim-quotation.md).
 
 Every metric reported is deterministic. Recall@k, excerpt validity and citation existence
 need no labels beyond the corpus itself; citation precision and answer hit rate are
