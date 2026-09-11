@@ -212,3 +212,77 @@ def test_a_schedule_row_never_retrieved_is_dropped(corpus, schedule):
 
     assert result.refused
     assert any("retrieved context" in d["reason"] for d in result.dropped)
+
+
+def test_a_verified_citation_carries_how_the_section_was_amended():
+    """Current wording is not the whole answer to a legal question.
+
+    A provision substituted with effect from a date after the events a user is
+    asking about is the wrong provision for those events, and nothing in the text
+    says so. The parser has carried these records since ingestion; nothing showed
+    them.
+    """
+    from datetime import date
+
+    from app.ingest.models import Act, Amendment, Operation, Section, SectionUnit
+    from app.qa.schema import CRPC, Answer, Citation
+    from app.qa.validation import validate
+
+    act = Act(
+        act_id=75,
+        title="The Code of Criminal Procedure, 1898",
+        source_url="x",
+        fetched_at="2026-01-01T00:00:00Z",
+        source_hash="0" * 64,
+        sections=[
+            Section(
+                number="54",
+                units=[
+                    SectionUnit(
+                        marginal_note="When police may arrest without warrant",
+                        text="54. (1) Any police-officer may arrest without warrant.",
+                        footnote_markers=[74, 9],
+                    )
+                ],
+            )
+        ],
+        amendments={
+            74: Amendment(
+                marker=74,
+                operation=Operation.SUBSTITUTED,
+                text="Section 54 was substituted in 2026.",
+                amending_act_id=1640,
+                act_number="XI of 2026",
+                effective_from=date(2025, 8, 10),
+            ),
+            9: Amendment(
+                marker=9,
+                operation=Operation.INSERTED,
+                text="An older change with no stated date.",
+            ),
+        },
+    )
+    answer = Answer(
+        text="A police officer may arrest without warrant.",
+        citations=[
+            Citation(
+                section="54",
+                source=CRPC,
+                quote="Any police-officer may arrest without warrant.",
+            )
+        ],
+        retrieved_sections=["CrPC:54"],
+    )
+
+    result = validate(answer, {CRPC: act})
+    citation = result.citations[0]
+
+    assert citation.quote_verified
+    assert [a.operation for a in citation.amendments] == ["substituted", "inserted"]
+    assert citation.amendments[0].effective_from == "2025-08-10"
+    assert citation.amendments[0].act_number == "XI of 2026"
+    assert "act-details-1640" in citation.amendments[0].source_url
+    # The undated record is kept and sorted last, not dropped: the footnote still
+    # says what changed, and discarding it would hide an amendment because its date
+    # failed to parse.
+    assert citation.amendments[1].effective_from is None

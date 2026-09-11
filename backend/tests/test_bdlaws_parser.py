@@ -250,3 +250,50 @@ def test_the_ingested_code_carries_no_spacing_artefacts():
         for m in re.finditer(r"\S\s+[,;:]", s.text)
     ]
     assert offenders == []
+
+
+# --- ADR 0006: only operative law is retrievable as law -----------------------
+
+
+def test_an_amending_act_is_recognised_from_its_own_title():
+    """Regression. The role was an annotation nobody derived.
+
+    `parse_act` defaulted every document to operative, so ADR 0006's guarantee —
+    that an amending instrument never answers a question about what the law
+    provides — rested on no one ever ingesting one.
+    """
+    from app.ingest import DocumentRole, infer_role
+
+    assert infer_role("Code of Criminal Procedure (Amendment) Act, 2026") is (
+        DocumentRole.AMENDING
+    )
+    assert infer_role("Code of Criminal Procedure (Amending) Ordinance, 1976") is (
+        DocumentRole.AMENDING
+    )
+    assert infer_role("The Code of Criminal Procedure, 1898") is DocumentRole.OPERATIVE
+    assert infer_role("The Penal Code, 1860") is DocumentRole.OPERATIVE
+    assert infer_role("") is DocumentRole.OPERATIVE
+
+
+@pytest.mark.skipif(not CORPUS.exists(), reason="corpus not fetched")
+def test_the_ingested_code_is_operative():
+    from app.ingest import DocumentRole
+
+    act = parse_act(
+        CORPUS.read_text(encoding="utf-8", errors="replace"),
+        act_id=75,
+        source_url="https://bdlaws.minlaw.gov.bd/act-print-75.html",
+    )
+    assert act.role is DocumentRole.OPERATIVE
+
+
+def test_an_explicit_role_overrides_the_inference():
+    from app.ingest import DocumentRole
+
+    act = parse_act(
+        FIXTURE.read_text(encoding="utf-8"),
+        act_id=1,
+        source_url="x",
+        role=DocumentRole.AMENDING,
+    )
+    assert act.role is DocumentRole.AMENDING

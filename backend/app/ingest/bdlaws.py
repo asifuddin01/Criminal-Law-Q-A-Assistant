@@ -199,15 +199,39 @@ def _act_metadata(soup: BeautifulSoup) -> tuple[str, str | None]:
     return title, number
 
 
+# An amending act names itself. bdlaws titles them "... (Amendment) Act, 2009" and
+# "... (Amending) Ordinance", and their operative content is a list of instructions
+# to alter another act.
+_AMENDING_TITLE = re.compile(r"\(\s*amend(?:ment|ing)\s*\)", re.I)
+
+
+def infer_role(title: str) -> DocumentRole:
+    """What kind of document this is, from how it names itself.
+
+    ADR 0006 says only operative law is retrievable as law. That was an annotation
+    nobody derived and nothing checked: `parse_act` defaulted every document to
+    operative, so an amending act dropped into the corpus would have been indexed as
+    a statement of law and could have answered a question about what a section
+    provides with a 1976 instruction to delete a word.
+    """
+    return DocumentRole.AMENDING if _AMENDING_TITLE.search(title or "") else (
+        DocumentRole.OPERATIVE
+    )
+
+
 def parse_act(
     html: str,
     *,
     act_id: int,
     source_url: str,
     fetched_at: datetime | None = None,
-    role: DocumentRole = DocumentRole.OPERATIVE,
+    role: DocumentRole | None = None,
 ) -> Act:
-    """Parse a bdlaws print-view document into an Act."""
+    """Parse a bdlaws print-view document into an Act.
+
+    `role` is inferred from the document's title when not given. Passing it
+    explicitly overrides the inference, for a document that names itself unusually.
+    """
     soup = BeautifulSoup(html, "lxml")
     title, act_number = _act_metadata(soup)
 
@@ -292,7 +316,7 @@ def parse_act(
         act_id=act_id,
         title=title,
         act_number=act_number,
-        role=role,
+        role=role if role is not None else infer_role(title),
         source_url=source_url,
         fetched_at=fetched_at or datetime.now().astimezone(),
         source_hash=hashlib.sha256(html.encode("utf-8")).hexdigest(),

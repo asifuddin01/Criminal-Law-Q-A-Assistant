@@ -272,3 +272,79 @@ button.ghost.recording {
 }
 
 .attached .translation-notice { border-top: 0; padding-top: 0; }
+
+/* Amendment provenance on a citation.
+   Collapsed by default: most questions are about what a section says now, and the
+   history is what you need only when the date matters. The most recent effective
+   date is in the summary, because that is the part that decides whether the
+   section as it now reads governs the events being asked about. */
+.amend {
+  margin: 0.6rem 0 0.2rem;
+  border-left: 2px solid var(--rule, #d8d8d2);
+  padding-left: 0.75rem;
+}
+
+.amend > summary {
+  cursor: pointer;
+  font-size: 0.82rem;
+  color: var(--muted, #6b6b66);
+  list-style: none;
+}
+
+.amend > summary::-webkit-details-marker {
+  display: none;
+}
+
+.amend > summary::before {
+  content: "▸ ";
+  display: inline-block;
+  transition: transform 0.12s ease;
+}
+
+.amend[open] > summary::before {
+  content: "▾ ";
+}
+
+.amend ul {
+  margin: 0.5rem 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.amend li {
+  margin: 0 0 0.7rem;
+  font-size: 0.84rem;
+}
+
+.amend li p {
+  margin: 0.25rem 0 0.2rem;
+  color: var(--ink, #24241f);
+}
+
+.amend .op {
+  display: inline-block;
+  font-size: 0.72rem;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  padding: 0.08rem 0.4rem;
+  border-radius: 3px;
+  background: #ece9e2;
+  color: #55524a;
+  margin-right: 0.45rem;
+}
+
+.amend .op.omitted,
+.amend .op.repealed {
+  background: #f3e2e2;
+  color: #7a3c3c;
+}
+
+.amend .op.inserted {
+  background: #e3efe3;
+  color: #3d6b3d;
+}
+
+.amend .when {
+  color: var(--muted, #6b6b66);
+  font-variant-numeric: tabular-nums;
+}

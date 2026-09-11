@@ -1,4 +1,4 @@
-from app.ingest.bdlaws import parse_act
+from app.ingest.bdlaws import infer_role, parse_act
 from app.ingest.fetch import (
     act_print_url,
     cache_path,
@@ -22,6 +22,7 @@ __all__ = [
     "Act",
     "Amendment",
     "DocumentRole",
+    "infer_role",
     "Operation",
     "ScheduleEntry",
     "Section",

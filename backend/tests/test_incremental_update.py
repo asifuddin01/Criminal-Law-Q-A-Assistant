@@ -246,3 +246,40 @@ def test_an_update_that_would_replace_the_index_refuses(monkeypatch, capsys):
     # Nothing was embedded and nothing was saved.
     assert len(existing) == 100
     assert all(c.strategy == "legal_aware" for c in existing.chunks)
+
+
+def test_an_amending_act_is_never_chunked_into_the_index(monkeypatch, tmp_path):
+    """ADR 0006, enforced rather than asserted.
+
+    An amending act's text is a list of instructions to alter another act. Indexed
+    flat, "what does section 54 provide?" can retrieve a genuine, correctly citable
+    instruction to substitute a word, and answer with it.
+    """
+    from app.ingest import DocumentRole
+    from app.ingest.models import Act
+    from app.retrieval import update as update_module
+
+    amending = Act(
+        act_id=1640,
+        title="Code of Criminal Procedure (Amendment) Act, 2026",
+        source_url="x",
+        fetched_at="2026-01-01T00:00:00Z",
+        source_hash="0" * 64,
+        role=DocumentRole.AMENDING,
+        sections=[],
+    )
+    raw = tmp_path / "act-print-1640.html"
+    raw.write_text("<html></html>", encoding="utf-8")
+
+    monkeypatch.setattr(update_module, "RAW_DIR", tmp_path)
+    monkeypatch.setattr(update_module, "parse_act", lambda *a, **k: amending)
+    monkeypatch.setattr(update_module, "ingested_acts", lambda: [1640])
+    monkeypatch.setattr(update_module.schedule_path, "__call__", lambda: tmp_path / "none")
+
+    shape = update_module.IndexShape(
+        strategy="legal_aware", acts=(1640,), with_schedule=False
+    )
+    chunks, sources = update_module.desired_chunks(shape)
+
+    assert chunks == []
+    assert any("SKIPPED" in s and "amending" in s for s in sources)

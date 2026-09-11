@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import time
+from dataclasses import asdict
 from typing import Annotated
 
 from fastapi import APIRouter, File, Form, HTTPException, Query, Request, UploadFile
@@ -17,6 +18,7 @@ from app.qa.documents import DocumentStore, UnreadableDocument
 from app.qa.translate import NOTICE, UnsupportedLanguage, translate
 from app.qa.validation import validate
 from app.schemas import (
+    AmendmentOut,
     AskRequest,
     AskResponse,
     CitationOut,
@@ -208,6 +210,7 @@ async def ask(request: AskRequest, http_request: Request) -> AskResponse:
                 quote=c.quote,
                 quote_verified=c.quote_verified,
                 source_url=c.source_url,
+                amendments=[AmendmentOut(**asdict(a)) for a in c.amendments],
             )
             for c in result.citations
         ],

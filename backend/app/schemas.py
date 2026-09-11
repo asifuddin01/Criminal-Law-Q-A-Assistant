@@ -60,6 +60,26 @@ class AskRequest(BaseModel):
     )
 
 
+class AmendmentOut(BaseModel):
+    """How a cited section came to read as it does.
+
+    Returned with the citation because current wording is not the whole answer to a
+    legal question. A provision substituted with effect from a date after the events
+    a user is asking about is the wrong provision for those events, and nothing in
+    the text itself says so.
+    """
+
+    operation: str = Field(description="substituted, inserted, omitted, repealed")
+    text: str = Field(description="The footnote as published, unedited")
+    amending_act_title: str | None = None
+    amending_act_id: int | None = None
+    act_number: str | None = Field(default=None, description="e.g. 'XI of 2026'")
+    effective_from: str | None = Field(
+        default=None, description="ISO date, null when the footnote does not state one"
+    )
+    source_url: str = Field(default="", description="The amending act on bdlaws")
+
+
 class CitationOut(BaseModel):
     section: str = Field(description="Section number, e.g. '54' or '561A'")
     source: str = Field(
@@ -80,6 +100,13 @@ class CitationOut(BaseModel):
         description="True only when the excerpt was found in the stored source text"
     )
     source_url: str
+    amendments: list[AmendmentOut] = Field(
+        default_factory=list,
+        description=(
+            "Amendments to this section, most recent first, undated last. Empty for "
+            "Schedule II rows and uploaded documents, which carry no footnotes."
+        ),
+    )
 
 
 class DroppedCitation(BaseModel):

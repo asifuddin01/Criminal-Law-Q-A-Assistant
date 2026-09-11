@@ -25,10 +25,30 @@ from app.qa.schema import CRPC, UPLOADED, Answer
 from app.retrieval.chunking import schedule_rows
 
 SOURCE_URL = "https://bdlaws.minlaw.gov.bd/act-{act_id}/section-{number}.html"
+AMENDING_ACT_URL = "https://bdlaws.minlaw.gov.bd/act-details-{act_id}.html"
 DISPLAY = {"CrPC": "Code of Criminal Procedure", "PenalCode": "Penal Code"}
 SCHEDULE_URL = (
     "https://bdlaws.minlaw.gov.bd/upload/act/2026-05-05-11-47-47-Schedule-II.pdf"
 )
+
+@dataclass(frozen=True, slots=True)
+class AmendmentNote:
+    """How a cited section came to read as it does.
+
+    Surfaced with the citation because a section's current wording is not the whole
+    answer to a legal question: when it changed, under which act, and from what date
+    decide whether it governs the matter the user is actually asking about. The
+    parser has carried these records since ingestion; nothing showed them.
+    """
+
+    operation: str
+    text: str
+    amending_act_title: str | None = None
+    amending_act_id: int | None = None
+    act_number: str | None = None
+    effective_from: str | None = None
+    source_url: str = ""
+
 
 @dataclass(frozen=True, slots=True)
 class VerifiedCitation:
@@ -44,6 +64,8 @@ class VerifiedCitation:
     # was read as one. Surfaced so a repaired quotation is never mistaken for one
     # the model produced cleanly.
     quote_repair: str = ""
+    # Amendments attached to this section, most recent first.
+    amendments: tuple[AmendmentNote, ...] = ()
 
 
 @dataclass(slots=True)
@@ -61,6 +83,39 @@ class ValidationResult:
     @property
     def grounded(self) -> bool:
         return bool(self.citations) and not self.refused
+
+
+def _amendment_notes(act: Act, section) -> tuple[AmendmentNote, ...]:
+    """Amendment records for a section, most recent first.
+
+    Ordered by effective date because that is the order a reader needs: the most
+    recent change is the one that decides how the section reads today. Records
+    without a date sort last rather than being dropped — the footnote text still
+    says what changed, and discarding it would hide an amendment because its date
+    failed to parse.
+    """
+    notes = [
+        AmendmentNote(
+            operation=str(a.operation),
+            text=a.text,
+            amending_act_title=a.amending_act_title,
+            amending_act_id=a.amending_act_id,
+            act_number=a.act_number,
+            effective_from=a.effective_from.isoformat() if a.effective_from else None,
+            source_url=(
+                AMENDING_ACT_URL.format(act_id=a.amending_act_id)
+                if a.amending_act_id
+                else ""
+            ),
+        )
+        for a in act.amendments_for(section)
+    ]
+    # Dated records first, most recent among them first; undated records last.
+    notes.sort(
+        key=lambda n: (n.effective_from is not None, n.effective_from or ""),
+        reverse=True,
+    )
+    return tuple(notes)
 
 
 def validate(
@@ -118,6 +173,7 @@ def validate(
                 continue
             note = "uploaded document"
             part, chapter, url = None, None, ""
+            amendments = ()
         elif is_schedule:
             entry = schedule_by_section.get(number)
             if entry is None:
@@ -133,6 +189,8 @@ def validate(
             note = entry.offence.strip().rstrip(".")
             part, chapter = None, entry.chapter
             url = SCHEDULE_URL
+            # Schedule II is a table, not a section; its rows carry no footnotes.
+            amendments = ()
         else:
             act = acts.get(document)
             if act is None:
@@ -161,6 +219,7 @@ def validate(
             note = section.marginal_notes[0] if section.marginal_notes else ""
             part, chapter = section.part, section.chapter
             url = SOURCE_URL.format(act_id=act.act_id, number=number)
+            amendments = _amendment_notes(act, section)
 
         if require_retrieved and allowed and f"{document}:{number}" not in allowed:
             # The model produced a section it was never shown. Whether or not the
@@ -207,6 +266,7 @@ def validate(
                 quote=quote,
                 quote_verified=verified,
                 quote_repair=repair,
+                amendments=amendments,
                 source_url=url,
                 source=document,
             )

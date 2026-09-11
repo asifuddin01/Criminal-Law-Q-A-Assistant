@@ -9,7 +9,13 @@ import argparse
 import sys
 import time
 
-from app.ingest import cache_path, parse_act, parse_schedule, schedule_path
+from app.ingest import (
+    DocumentRole,
+    cache_path,
+    parse_act,
+    parse_schedule,
+    schedule_path,
+)
 from app.retrieval.chunking import STRATEGIES, schedule_rows
 from app.retrieval.embeddings import DEFAULT_MODEL
 from app.retrieval.index import VectorIndex
@@ -40,6 +46,19 @@ def main(argv: list[str] | None = None) -> int:
         act_id=args.act,
         source_url=f"https://bdlaws.minlaw.gov.bd/act-print-{args.act}.html",
     )
+    if act.role is not DocumentRole.OPERATIVE:
+        # ADR 0006. Refused rather than warned about: an index is built once and
+        # queried for weeks, and nothing downstream would show that a provision it
+        # answered from was an instruction to amend rather than a provision.
+        print(
+            f"act {args.act} is {act.role.value}, not operative law: {act.title!r}\n"
+            "An amending act's text is a diff, not a provision, and indexing it "
+            "would let it answer questions about what the law provides.\n"
+            "See docs/adr/0006-document-roles-separate-operative-law-from-"
+            "amending-instruments.md"
+        )
+        return 2
+
     chunks = STRATEGIES[args.strategy](act)
     crossing = sum(c.crosses_section_boundary for c in chunks)
     print(f"{args.strategy}: {len(chunks)} chunks, {crossing} cross a section boundary")

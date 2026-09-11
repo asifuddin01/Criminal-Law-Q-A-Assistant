@@ -4,6 +4,7 @@ import { useCallback, useEffect, useState } from "react";
 import { useRef } from "react";
 import {
   API_URL,
+  type Amendment,
   type AskResponse,
   type Meta,
   type ImageText,
@@ -11,6 +12,32 @@ import {
   type Translation,
   type UploadedDocument,
 } from "./types";
+
+/** "10 August 2025" — the form a date takes in a statute, not a locale default. */
+function formatDate(iso: string): string {
+  const parsed = new Date(`${iso}T00:00:00Z`);
+  if (Number.isNaN(parsed.getTime())) return iso;
+  return parsed.toLocaleDateString("en-GB", {
+    day: "numeric",
+    month: "long",
+    year: "numeric",
+    timeZone: "UTC",
+  });
+}
+
+/**
+ * What the collapsed row says. The most recent effective date is the fact that
+ * decides whether this section governs the matter being asked about, so it goes
+ * in the summary rather than behind the disclosure triangle.
+ */
+function amendmentSummary(amendments: Amendment[]): string {
+  const count = amendments.length;
+  const label = count === 1 ? "1 amendment" : `${count} amendments`;
+  const latest = amendments.find((a) => a.effective_from);
+  return latest
+    ? `${label} — most recently in force from ${formatDate(latest.effective_from!)}`
+    : `${label} — no effective date stated`;
+}
 
 const EXAMPLES = [
   "When may a police officer arrest without a warrant?",
@@ -423,6 +450,39 @@ export default function Page() {
                     </div>
                   )}
                   {citation.quote && <blockquote>{citation.quote}</blockquote>}
+                  {citation.amendments?.length > 0 && (
+                    <details className="amend">
+                      <summary>
+                        {amendmentSummary(citation.amendments)}
+                      </summary>
+                      <ul>
+                        {citation.amendments.map((a, i) => (
+                          <li key={`${a.operation}-${a.effective_from}-${i}`}>
+                            <span className={`op ${a.operation}`}>
+                              {a.operation}
+                            </span>
+                            <span className="when">
+                              {a.effective_from
+                                ? formatDate(a.effective_from)
+                                : "date not stated"}
+                            </span>
+                            <p>{a.text}</p>
+                            {a.source_url && (
+                              <a
+                                href={a.source_url}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                              >
+                                {a.amending_act_title ??
+                                  `Act ${a.act_number ?? ""}`.trim()}{" "}
+                                →
+                              </a>
+                            )}
+                          </li>
+                        ))}
+                      </ul>
+                    </details>
+                  )}
                   <a
                     href={citation.source_url}
                     target="_blank"

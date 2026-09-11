@@ -1,3 +1,13 @@
+export interface Amendment {
+  operation: string;
+  text: string;
+  amending_act_title: string | null;
+  amending_act_id: number | null;
+  act_number: string | null;
+  effective_from: string | null;
+  source_url: string;
+}
+
 export interface Citation {
   section: string;
   source: string;
@@ -7,6 +17,7 @@ export interface Citation {
   quote: string;
   quote_verified: boolean;
   source_url: string;
+  amendments: Amendment[];
 }
 
 export interface DroppedCitation {

@@ -26,6 +26,7 @@ import sys
 from dataclasses import dataclass
 
 from app.ingest import (
+    DocumentRole,
     act_print_url,
     parse_act,
     parse_schedule,
@@ -109,6 +110,15 @@ def desired_chunks(shape: IndexShape) -> tuple[list[Chunk], list[str]]:
             act_id=act_id,
             source_url=act_print_url(act_id),
         )
+        if act.role is not DocumentRole.OPERATIVE:
+            # ADR 0006. An amending act's text is a diff, not a provision. Indexing
+            # it flat would let "what does section 54 provide?" retrieve a genuine,
+            # correctly citable instruction to substitute a word — and answer with
+            # it.
+            sources.append(
+                f"act-{act_id} {act.title} — SKIPPED, role is {act.role.value}"
+            )
+            continue
         act_chunks = chunker(act)
         chunks.extend(act_chunks)
         sources.append(f"act-{act_id} {act.title} — {len(act_chunks)} chunks")
