@@ -53,6 +53,23 @@ const SHOTS = [
       await page.waitForTimeout(400);
     },
   },
+  {
+    name: "05-amendment-provenance",
+    caption:
+      "Every citation carries how and when the section changed, and under which act",
+    async run(page) {
+      await askExample(page, "How long can police detain");
+      // Section 167 has six amendment records, which is the point of the shot:
+      // current wording alone would not tell a reader that sub-section (2) was
+      // substituted with effect from a date in 2025.
+      const histories = page.locator("details.amend > summary");
+      const count = await histories.count();
+      for (let i = 0; i < count; i += 1) {
+        await histories.nth(i).click();
+      }
+      await page.waitForTimeout(400);
+    },
+  },
 ];
 
 async function askExample(page, fragment) {
