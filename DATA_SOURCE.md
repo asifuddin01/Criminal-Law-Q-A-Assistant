@@ -193,13 +193,26 @@ questions is detected rather than presumed harmless.
 
 ## Retrieval and provenance policy
 
-Every ingested unit records the source URL, the site page id, the fetch timestamp, and a
-content hash. Citations shown to users resolve back to a specific section of a specific act,
-and quoted excerpts are verified as substrings of the stored source text before display.
+Every ingested act records the source URL, the fetch timestamp and a SHA-256 of the document
+as fetched; every chunk records a content hash of its own text, which is what an incremental
+update compares. The *site page id* this paragraph used to list is gone: ingestion moved to
+the single-document print view ([ADR 0005](docs/adr/0005-ingest-from-single-document-print-view.md)),
+so there are no per-page records to carry an id.
+
+Citations shown to users resolve back to a specific section of a specific act — the document
+is part of the citation, because section numbers repeat across acts — and carry the
+amendments that produced the section's current wording. A quoted excerpt is checked against
+the cited section's own words before display, which is a substring test over text
+canonicalised for the source's editorial apparatus rather than over the raw stored string;
+[ADR 0011](docs/adr/0011-what-counts-as-a-verbatim-quotation.md) states exactly what that
+admits and what it does not.
 
 ## Terms of use
 
 The corpus is public legislation published by the Government of Bangladesh for public
-reference. Ingestion is rate-limited and identifies itself by user agent. Content is used
-for reference and citation, and the assistant links back to the official source for every
-citation it produces.
+reference. Ingestion identifies itself by user agent and fetches **one document per act**
+plus one PDF for Schedule II — there is no crawl, and so nothing to rate-limit. That is a
+consequence of the print-view decision rather than a separate politeness measure: an earlier
+design would have fetched 522 pages to assemble the same act. Content is used for reference
+and citation, and the assistant links back to the official source for every citation it
+produces, and to the amending act for every amendment it reports.
