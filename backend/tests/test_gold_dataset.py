@@ -17,7 +17,8 @@ from app.evaluation import (
     load_gold,
     validate_against_corpus,
 )
-from app.ingest import cache_path, parse_act
+from app.ingest import cache_path, parse_act, parse_schedule, schedule_path
+from app.ingest.schedule import ScheduleCorpus
 
 CORPUS = cache_path(75)
 corpus_only = pytest.mark.skipif(
@@ -34,13 +35,16 @@ def gold():
 def corpora():
     if not CORPUS.exists():
         return {}
-    return {
+    built = {
         "CrPC": parse_act(
             CORPUS.read_text(encoding="utf-8", errors="replace"),
             act_id=75,
             source_url="https://bdlaws.minlaw.gov.bd/act-print-75.html",
         )
     }
+    if schedule_path().exists():
+        built["ScheduleII"] = ScheduleCorpus(parse_schedule(schedule_path()))
+    return built
 
 
 def test_dataset_loads_and_ids_are_unique(gold):
@@ -78,15 +82,21 @@ def test_bangla_slice_is_actually_bangla(gold):
         assert any("ঀ" <= ch <= "৿" for ch in question.question)
 
 
-def test_unanswerable_questions_record_what_would_answer_them(gold):
-    """Unanswerability is relative to the current corpus. Recording the act that
-    would answer a question keeps these labels correct as the corpus grows."""
-    schedule_dependent = [
-        q for q in gold if "CrPC-Schedule-II" in q.requires_acts
-    ]
-    assert schedule_dependent, "offence-classification questions must be represented"
-    for question in schedule_dependent:
-        assert not question.answerable
+def test_schedule_dependent_questions_became_answerable_when_it_was_ingested(gold):
+    """Unanswerability is relative to the corpus, which is why these labels record
+    what would answer them.
+
+    These three were unanswerable until Schedule II was parsed and indexed. Leaving
+    them marked unanswerable afterwards would score a correct answer as a failure —
+    the system would be penalised for the capability it had just gained.
+    """
+    dependent = [q for q in gold if "CrPC-Schedule-II" in q.requires_acts]
+
+    assert dependent, "offence-classification questions must be represented"
+    for question in dependent:
+        assert question.answerable
+        assert question.gold_sections
+        assert all(s.startswith("ScheduleII-") for s in question.gold_sections)
 
 
 @corpus_only

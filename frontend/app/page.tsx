@@ -11,7 +11,7 @@ import {
 const EXAMPLES = [
   "When may a police officer arrest without a warrant?",
   "How long can police detain someone before a Magistrate?",
-  "When may bail be granted for a non-bailable offence?",
+  "Is theft a bailable offence?",
   "পুলিশ কখন বিনা পরোয়ানায় গ্রেপ্তার করতে পারে?",
 ];
 
@@ -194,7 +194,11 @@ export default function Page() {
               {result.citations.map((citation) => (
                 <article className="cite" key={`${citation.section}-${citation.quote}`}>
                   <div className="cite-head">
-                    <span className="cite-num">Section {citation.section}</span>
+                    <span className="cite-num">
+                      {citation.source === "ScheduleII"
+                        ? `Schedule II · Penal Code s.${citation.section}`
+                        : `Section ${citation.section}`}
+                    </span>
                     <span className="cite-note">{citation.marginal_note}</span>
                     <span
                       className={`badge ${citation.quote_verified ? "ok" : "no"}`}
@@ -239,8 +243,12 @@ export default function Page() {
                   <ul>
                     {result.dropped_citations.map((dropped, index) => (
                       <li key={index}>
-                        <strong>Section {dropped.section}</strong> —{" "}
-                        {dropped.reason}
+                        <strong>
+                          {dropped.source === "ScheduleII"
+                            ? `Schedule II, Penal Code s.${dropped.section}`
+                            : `Section ${dropped.section}`}
+                        </strong>{" "}
+                        — {dropped.reason}
                         {dropped.quote && (
                           <>
                             {" "}
@@ -265,11 +273,16 @@ export default function Page() {
                     {result.retrieved_sections.length})
                   </summary>
                   <div className="chips">
-                    {result.retrieved_sections.map((section) => (
-                      <span className="chip" key={section}>
-                        s.{section}
-                      </span>
-                    ))}
+                    {result.retrieved_sections.map((section) => {
+                      const [document, number] = section.includes(":")
+                        ? section.split(":")
+                        : ["CrPC", section];
+                      return (
+                        <span className="chip" key={section}>
+                          {document === "ScheduleII" ? "Sch.II " : ""}s.{number}
+                        </span>
+                      );
+                    })}
                   </div>
                 </details>
               )}

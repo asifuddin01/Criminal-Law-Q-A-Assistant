@@ -11,17 +11,24 @@ from __future__ import annotations
 from functools import lru_cache
 
 from app.config import get_settings
-from app.ingest import Act, cache_path, parse_act
+from app.ingest import (
+    Act,
+    ScheduleEntry,
+    cache_path,
+    parse_act,
+    parse_schedule,
+    schedule_path,
+)
 from app.llm import get_provider
 from app.qa import RetrievalQA
-from app.retrieval import VectorIndex
+from app.retrieval import ScheduleLookup, VectorIndex
 
 ACT_ID = 75
 ACT_URL = f"https://bdlaws.minlaw.gov.bd/act-print-{ACT_ID}.html"
 
 # The strategy the measurements chose. Retrieval-only evaluation put legal-aware
 # chunking at recall@10 of 90.3% against 52.8% for fixed-size windows.
-INDEX_NAME = "legal_aware"
+INDEX_NAME = "legal_aware_schedule"
 
 
 class CorpusUnavailable(RuntimeError):
@@ -53,9 +60,28 @@ def get_index() -> VectorIndex:
 
 
 @lru_cache(maxsize=1)
+def get_schedule() -> list[ScheduleEntry]:
+    source = schedule_path()
+    if not source.exists():
+        raise CorpusUnavailable(
+            "Schedule II not ingested; run: python -m app.ingest --schedule"
+        )
+    return parse_schedule(source)
+
+
+@lru_cache(maxsize=1)
+def get_lookup() -> ScheduleLookup:
+    return ScheduleLookup(get_schedule())
+
+
+@lru_cache(maxsize=1)
 def get_qa() -> RetrievalQA:
     return RetrievalQA(
-        get_provider(), get_index(), name="rag-legal-chunks", k=get_settings().retrieval_k
+        get_provider(),
+        get_index(),
+        name="rag-legal-chunks",
+        k=get_settings().retrieval_k,
+        lookup=get_lookup(),
     )
 
 
@@ -66,14 +92,13 @@ def warm() -> dict[str, str]:
     start and say so, the same reasoning that keeps /meta alive without a provider.
     """
     status: dict[str, str] = {}
-    for name, builder in (("corpus", get_corpus), ("index", get_index)):
+    for name, builder, describe in (
+        ("corpus", get_corpus, lambda a: f"{len(a.sections)} sections"),
+        ("index", get_index, lambda i: f"{len(i)} chunks"),
+        ("schedule", get_schedule, lambda s: f"{len(s)} offences"),
+    ):
         try:
-            built = builder()
-            status[name] = (
-                f"{len(built.sections)} sections"
-                if name == "corpus"
-                else f"{len(built)} chunks"
-            )
+            status[name] = describe(builder())
         except CorpusUnavailable as exc:
             status[name] = f"unavailable: {exc}"
     return status

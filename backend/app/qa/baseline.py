@@ -72,7 +72,11 @@ def _parse(raw: str) -> tuple[str, list[Citation], bool]:
             section = str(item.get("section", "")).strip()
             if section:
                 citations.append(
-                    Citation(section=section, quote=str(item.get("quote", "")).strip())
+                    Citation(
+                        section=section,
+                        quote=str(item.get("quote", "")).strip(),
+                        source=str(item.get("source") or "CrPC").strip() or "CrPC",
+                    )
                 )
         elif isinstance(item, str) and item.strip():
             citations.append(Citation(section=item.strip()))

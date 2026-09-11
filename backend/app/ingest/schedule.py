@@ -37,6 +37,15 @@ COLUMN_NUMBERS = re.compile(r"^[1-8](\s+[1-8])+$")
 CHAPTER = re.compile(r"CHAPTER\s+[IVXL]+[A-Z]*", re.I)
 DITTO = re.compile(r"^\s*ditto\b", re.I)
 
+# Amendment apparatus inside a cell: "4[Metropolitan Magistrate]" marks text
+# substituted by the amendment at footnote 4. The markers are stripped from cell
+# text because Schedule II's footnotes are not resolvable per row — they are page
+# footnotes, and the table gives no way to attach one to a particular entry. Keeping
+# the brackets would leave "Judicial Magistrate]." in an answer; keeping the digits
+# would put a number in front of a court's name.
+AMENDMENT_MARK = re.compile(r"\d*\[|\]")
+STAR_OMISSION = re.compile(r"\s*\[?\s*\*\s*\*\s*\*\s*\]?\s*")
+
 _YES_COGNIZABLE = re.compile(r"\bmay\s+arrest\b", re.I)
 _NO_COGNIZABLE = re.compile(r"\b(?:shall\s+not|may\s+not)\s+arrest\b", re.I)
 _DEPENDS = re.compile(r"accor[- ]?ding\s+as|\bditto\b", re.I)
@@ -214,6 +223,12 @@ def _plain(text: str, word: str) -> Triable:
     return Triable.UNKNOWN
 
 
+def _clean_cell(text: str) -> str:
+    """Remove the amendment apparatus from a cell's text."""
+    without_omissions = STAR_OMISSION.sub(" ", text)
+    return re.sub(r"\s{2,}", " ", AMENDMENT_MARK.sub("", without_omissions)).strip()
+
+
 def _resolve_ditto(value: str, previous: str | None) -> str:
     """Replace a "Ditto" cell with the value it points at.
 
@@ -269,6 +284,7 @@ def parse_schedule(pdf_path, *, max_pages: int | None = None) -> list[ScheduleEn
         for index in range(1, 8):
             cells[index] = _resolve_ditto(cells[index], previous[index])
         previous = cells
+        cells = [cells[0], *(_clean_cell(c) for c in cells[1:])]
 
         entries.append(
             ScheduleEntry(
@@ -285,3 +301,39 @@ def parse_schedule(pdf_path, *, max_pages: int | None = None) -> list[ScheduleEn
             )
         )
     return entries
+
+
+@dataclass(frozen=True, slots=True)
+class _ScheduleSection:
+    """The parts of a Section the gold-label validator reads."""
+
+    text: str
+    is_repealed: bool = False
+
+
+class ScheduleCorpus:
+    """Schedule II behind the same interface as a parsed Act.
+
+    Gold labels are verified by resolving them against a corpus and checking the
+    text still says what the question was written against. Schedule II is a table,
+    not an act, but a label pointing into it needs the same check — otherwise
+    "ScheduleII-379" could rot into pointing at the wrong offence with nothing to
+    notice.
+    """
+
+    def __init__(self, entries: list[ScheduleEntry]) -> None:
+        self._entries = {e.penal_code_section: e for e in entries}
+
+    def section(self, number: str) -> _ScheduleSection | None:
+        entry = self._entries.get(number)
+        if entry is None:
+            return None
+        parts = [
+            entry.offence,
+            f"cognizable: {entry.cognizable.value}",
+            f"bailable: {entry.bailable.value}",
+            f"compoundable: {entry.compoundable.value}",
+            entry.triable_by,
+            entry.punishment,
+        ]
+        return _ScheduleSection(text=" ".join(p for p in parts if p.strip()))

@@ -7,6 +7,8 @@ each rule is tested in both directions.
 
 from __future__ import annotations
 
+import pathlib
+
 import pytest
 
 from app.ingest import cache_path, parse_act
@@ -38,7 +40,7 @@ def _answer(citations, **kwargs) -> Answer:
 def test_a_verbatim_quotation_passes_and_is_marked_verified(corpus):
     quote = corpus.section("61").text[40:140]
     result = validate(
-        _answer([Citation(section="61", quote=quote)], retrieved_sections=["61"]),
+        _answer([Citation(section="61", quote=quote)], retrieved_sections=["CrPC:61"]),
         corpus,
     )
 
@@ -59,7 +61,7 @@ def test_a_fabricated_quotation_is_stripped_but_the_section_survives(corpus):
                     quote="Every person arrested shall be produced within twelve hours.",
                 )
             ],
-            retrieved_sections=["61"],
+            retrieved_sections=["CrPC:61"],
         ),
         corpus,
     )
@@ -73,7 +75,7 @@ def test_a_fabricated_quotation_is_stripped_but_the_section_survives(corpus):
 @corpus_only
 def test_a_section_that_does_not_exist_is_dropped(corpus):
     result = validate(
-        _answer([Citation(section="9999")], retrieved_sections=["9999"]), corpus
+        _answer([Citation(section="9999")], retrieved_sections=["CrPC:9999"]), corpus
     )
 
     assert result.refused is True
@@ -85,7 +87,7 @@ def test_a_real_section_never_retrieved_is_dropped(corpus):
     """The stage 1 failure mode: citing a real section of the wrong statute from
     memory. Real, resolvable, and not grounded in anything retrieved."""
     result = validate(
-        _answer([Citation(section="57")], retrieved_sections=["61", "167"]), corpus
+        _answer([Citation(section="57")], retrieved_sections=["CrPC:61", "CrPC:167"]), corpus
     )
 
     assert result.refused is True
@@ -94,7 +96,7 @@ def test_a_real_section_never_retrieved_is_dropped(corpus):
 
 @corpus_only
 def test_an_answer_with_nothing_substantiated_becomes_a_refusal(corpus):
-    result = validate(_answer([], retrieved_sections=["61"]), corpus)
+    result = validate(_answer([], retrieved_sections=["CrPC:61"]), corpus)
 
     assert result.refused is True
     assert result.grounded is False
@@ -116,7 +118,7 @@ def test_short_quotations_are_not_treated_as_evidence(corpus):
     """Below the minimum length a quotation matches too easily to prove anything,
     so it is neither verified nor counted against the answer."""
     result = validate(
-        _answer([Citation(section="61", quote="the")], retrieved_sections=["61"]),
+        _answer([Citation(section="61", quote="the")], retrieved_sections=["CrPC:61"]),
         corpus,
     )
 
@@ -132,8 +134,81 @@ def test_whitespace_differences_do_not_defeat_a_genuine_quotation(corpus):
     reflowed = "\n   ".join(original.split(" ", 3))
 
     result = validate(
-        _answer([Citation(section="61", quote=reflowed)], retrieved_sections=["61"]),
+        _answer([Citation(section="61", quote=reflowed)], retrieved_sections=["CrPC:61"]),
         corpus,
     )
 
     assert result.citations[0].quote_verified is True
+
+
+# --- Schedule II citations ---------------------------------------------------------
+
+
+@pytest.fixture(scope="module")
+def schedule():
+    from app.ingest import parse_schedule, schedule_path
+
+    return parse_schedule(schedule_path()) if schedule_path().exists() else []
+
+
+schedule_only = pytest.mark.skipif(
+    not (pathlib.Path(__file__).resolve().parents[2] / "data" / "raw"
+         / "crpc-schedule-ii.pdf").exists(),
+    reason="Schedule II not fetched; run: python -m app.ingest --schedule",
+)
+
+
+@corpus_only
+@schedule_only
+def test_a_schedule_citation_resolves_against_schedule_ii(corpus, schedule):
+    result = validate(
+        Answer(
+            text="Theft is not bailable.",
+            citations=[Citation(section="379", source="Schedule II")],
+            retrieved_sections=["ScheduleII:379"],
+        ),
+        corpus,
+        schedule=schedule,
+    )
+
+    assert result.grounded
+    assert result.citations[0].source == "ScheduleII"
+    assert "theft" in result.citations[0].marginal_note.lower()
+
+
+@corpus_only
+@schedule_only
+def test_a_penal_code_number_is_not_validated_against_the_crpc(corpus, schedule):
+    """The reason citations carry a source at all. Penal Code section 379 is theft;
+    CrPC section 379 is about appeals. A citation claiming Schedule II must be
+    checked against Schedule II, and one claiming the CrPC against the CrPC —
+    resolving either against the other would confirm a wrong citation."""
+    result = validate(
+        Answer(
+            text="...",
+            citations=[Citation(section="9999", source="Schedule II")],
+            retrieved_sections=["ScheduleII:9999"],
+        ),
+        corpus,
+        schedule=schedule,
+    )
+
+    assert result.refused
+    assert any("Schedule II" in d["reason"] for d in result.dropped)
+
+
+@corpus_only
+@schedule_only
+def test_a_schedule_row_never_retrieved_is_dropped(corpus, schedule):
+    result = validate(
+        Answer(
+            text="...",
+            citations=[Citation(section="302", source="Schedule II")],
+            retrieved_sections=["ScheduleII:379"],
+        ),
+        corpus,
+        schedule=schedule,
+    )
+
+    assert result.refused
+    assert any("retrieved context" in d["reason"] for d in result.dropped)

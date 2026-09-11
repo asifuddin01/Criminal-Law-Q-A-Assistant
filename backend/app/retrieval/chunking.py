@@ -12,6 +12,18 @@ from dataclasses import dataclass
 
 from app.ingest.models import Act
 
+# Which document a chunk cites into. Section numbers are only unique within a
+# document: Penal Code section 379 is theft, while Code of Criminal Procedure
+# section 379 is about appeals. A citation carrying only "379" is ambiguous, and a
+# validator checking it against the wrong document would confirm it.
+CRPC = "CrPC"
+SCHEDULE_II = "ScheduleII"
+
+# Human-facing names. The codes above are identifiers — they appear in gold labels,
+# in retrieved-section lists and in metrics, so they must be stable and free of
+# spaces. What a reader sees is a separate concern.
+DISPLAY_NAMES = {CRPC: "Code of Criminal Procedure", SCHEDULE_II: "Schedule II"}
+
 
 @dataclass(frozen=True, slots=True)
 class Chunk:
@@ -27,10 +39,21 @@ class Chunk:
     # True when the chunk's text crosses out of the section it is attributed to.
     # The naive strategy cannot avoid this; it is recorded so the cost is visible.
     crosses_section_boundary: bool = False
+    document: str = CRPC
 
     @property
     def citation(self) -> str:
-        return self.section_number
+        if self.document == CRPC:
+            return f"section {self.section_number}"
+        return (
+            f"{DISPLAY_NAMES[self.document]}, "
+            f"Penal Code section {self.section_number}"
+        )
+
+    @property
+    def identifier(self) -> str:
+        """Stable key for gold labels and retrieval metrics."""
+        return f"{self.document}:{self.section_number}"
 
 
 def naive_fixed_size(
@@ -142,6 +165,86 @@ def legal_aware(act: Act, *, limit: int = 1400) -> list[Chunk]:
                     crosses_section_boundary=False,
                 )
             )
+    return chunks
+
+
+def _describe(value, positive: str, negative: str, conditional: str) -> str:
+    """Render a tri-state column as a sentence a reader and a model both parse.
+
+    DEPENDS is rendered explicitly rather than omitted. Many rows genuinely read
+    "according as the offence abetted is bailable or not", and silence would be read
+    as "no".
+    """
+    return {
+        "yes": positive,
+        "no": negative,
+        "depends": conditional,
+        "unknown": "Not stated in the schedule.",
+    }[value.value if hasattr(value, "value") else str(value)]
+
+
+def schedule_rows(entries) -> list[Chunk]:
+    """One chunk per Schedule II row, never split.
+
+    A row associates an offence with its procedural attributes, so a chunk crossing
+    a row boundary would attribute one offence's bailability to another. Rows are
+    short, so no splitting is needed and none is done.
+
+    The row is rendered as sentences rather than as a table fragment because it is
+    retrieved by embedding a natural-language question: "is theft bailable" should
+    land near "Theft ... This offence is bailable", not near a run of column headers.
+    """
+    chunks: list[Chunk] = []
+    for entry in entries:
+        offence = entry.offence.strip().rstrip(".") or "(offence not stated)"
+        lines = [
+            f"Schedule II of the Code of Criminal Procedure — "
+            f"Penal Code section {entry.penal_code_section}: {offence}.",
+            _describe(
+                entry.cognizable,
+                "This is a cognizable offence: the police may arrest without a warrant.",
+                "This is a non-cognizable offence: the police may not arrest without a "
+                "warrant.",
+                "Whether the police may arrest without a warrant depends on the "
+                "underlying offence.",
+            ),
+            _describe(
+                entry.bailable,
+                "This offence is bailable.",
+                "This offence is not bailable.",
+                "Whether this offence is bailable depends on the underlying offence.",
+            ),
+            _describe(
+                entry.compoundable,
+                "This offence is compoundable.",
+                "This offence is not compoundable.",
+                "Whether this offence is compoundable depends on the underlying "
+                "offence.",
+            ),
+        ]
+        if entry.triable_by.strip():
+            lines.append(f"Triable by: {entry.triable_by.strip()}")
+        if entry.punishment.strip():
+            lines.append(f"Punishment under the Penal Code: {entry.punishment.strip()}")
+        if entry.warrant_or_summons.strip():
+            lines.append(
+                f"Warrant or summons in the first instance: "
+                f"{entry.warrant_or_summons.strip()}"
+            )
+
+        chunks.append(
+            Chunk(
+                chunk_id=f"sch2-{entry.penal_code_section}-{entry.page}",
+                text="\n".join(lines),
+                section_number=entry.penal_code_section,
+                marginal_note=offence,
+                part=None,
+                chapter=entry.chapter,
+                strategy="schedule_rows",
+                crosses_section_boundary=False,
+                document=SCHEDULE_II,
+            )
+        )
     return chunks
 
 

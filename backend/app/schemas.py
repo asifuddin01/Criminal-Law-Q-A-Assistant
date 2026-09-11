@@ -46,6 +46,13 @@ class AskRequest(BaseModel):
 
 class CitationOut(BaseModel):
     section: str = Field(description="Section number, e.g. '54' or '561A'")
+    source: str = Field(
+        default="CrPC",
+        description=(
+            "Which document the section number belongs to. Penal Code section 379 "
+            "is theft; CrPC section 379 is not, so the number alone is ambiguous."
+        ),
+    )
     marginal_note: str = ""
     part: str | None = None
     chapter: str | None = None
@@ -62,6 +69,7 @@ class CitationOut(BaseModel):
 class DroppedCitation(BaseModel):
     section: str
     reason: str
+    source: str = "CrPC"
     quote: str | None = None
 
 

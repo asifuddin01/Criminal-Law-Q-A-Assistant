@@ -1,5 +1,6 @@
 export interface Citation {
   section: string;
+  source: string;
   marginal_note: string;
   part: string | null;
   chapter: string | null;
@@ -10,6 +11,7 @@ export interface Citation {
 
 export interface DroppedCitation {
   section: string;
+  source: string;
   reason: string;
   quote: string | null;
 }

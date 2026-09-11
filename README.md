@@ -66,6 +66,13 @@ can refuse it.
 
 Three decisions shape most of the design:
 
+**Offence classification is looked up, not retrieved.** "Is theft a bailable
+offence?" embeds closest to the sections *about* bail — 496 and 497 — while the row
+that decides it, Penal Code section 379 in Schedule II, ranks nowhere. Retrieval would
+hand the model the general bail provisions and get a fluent, correctly cited, wrong
+answer. Questions naming an offence therefore get that offence's Schedule II row placed
+in front of the model directly.
+
 **The section is the unit of citation.** Chunks never cross section boundaries, because a
 citation that cannot name a section is not verifiable.
 ([ADR 0002](docs/adr/0002-reassemble-pages-into-legal-sections.md),
@@ -92,7 +99,7 @@ covers every input path.
 | Generation | Groq `openai/gpt-oss-120b`, Ollama `qwen2.5:3b-instruct` fallback |
 | Speech | Groq `whisper-large-v3` |
 | Embeddings | `paraphrase-multilingual-MiniLM-L12-v2` (ONNX) |
-| Retrieval | Dense (exact, in-process); BM25 + RRF at stage 4 |
+| Retrieval | Dense (exact, in-process) plus direct offence lookup; BM25 + RRF at stage 4 |
 
 Groq and Ollama both expose an OpenAI-compatible API, so one client implementation serves
 both, and one credential covers generation and transcription. Providers declare
@@ -177,7 +184,7 @@ Affairs Division. Three source shapes:
 | Shape | Endpoint | Handling |
 |---|---|---|
 | Whole act | `act-print-<id>.html` | One request per act. Segmented by section marker; footnotes parsed into amendment records |
-| Schedule | `upload/act/…Schedule-II.pdf` | Table extraction into structured rows |
+| Schedule | `upload/act/…Schedule-II.pdf` | 161-page PDF, extracted into 376 structured offence rows |
 | Amending acts | Individual acts | Ingested with role `amending`, excluded from retrieval as law |
 
 Membership follows a stated criterion rather than intuition: an act is in scope if CrPC

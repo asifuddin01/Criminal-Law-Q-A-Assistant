@@ -39,14 +39,41 @@ def normalize_section_number(raw: str) -> str | None:
     return number
 
 
+# Section numbers are unique only within a document. Penal Code section 379 is
+# theft; Code of Criminal Procedure section 379 concerns appeals. A citation that
+# carries only a number is ambiguous, and a validator resolving it against the wrong
+# document would confirm it.
+CRPC = "CrPC"
+SCHEDULE_II = "ScheduleII"
+
+
+def normalize_source(raw: str) -> str:
+    """Map whatever the model wrote to a document code.
+
+    The prompt asks for "Schedule II", but models also produce "schedule-ii",
+    "Schedule II of the CrPC" and similar. The code is what everything downstream
+    keys on, so the variation is absorbed here rather than in each consumer.
+    """
+    return SCHEDULE_II if "schedule" in (raw or "").lower() else CRPC
+
+
 @dataclass(frozen=True, slots=True)
 class Citation:
     section: str
     quote: str = ""
+    source: str = CRPC
 
     @property
     def normalized(self) -> str | None:
         return normalize_section_number(self.section)
+
+    @property
+    def document(self) -> str:
+        return normalize_source(self.source)
+
+    @property
+    def is_schedule(self) -> bool:
+        return self.document == SCHEDULE_II
 
 
 @dataclass(slots=True)

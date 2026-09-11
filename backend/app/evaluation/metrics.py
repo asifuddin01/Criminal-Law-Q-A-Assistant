@@ -77,11 +77,20 @@ def score_question(question: GoldQuestion, answer: Answer, corpus) -> QuestionSc
     if answer.error:
         return score
 
-    gold = {number for _, number in question.targets}
+    # Gold labels are qualified by document ("CrPC-54"), and so are retrieved
+    # sections ("CrPC:54"), because a bare number is ambiguous between the Code and
+    # Schedule II. Bare numbers are also accepted: answers cached before the
+    # qualified form existed store them, and re-running from cache should resume
+    # rather than silently score zero recall against its own history.
+    gold = {f"{code}:{number}" for code, number in question.targets}
+    gold_numbers = {number for _, number in question.targets}
 
     score.retrieved = len(answer.retrieved_sections)
     if gold:
-        score.retrieval_hit = bool(gold & set(answer.retrieved_sections))
+        retrieved = set(answer.retrieved_sections)
+        score.retrieval_hit = bool(
+            (gold & retrieved) or (gold_numbers & retrieved)
+        )
 
     for citation in answer.citations:
         number = citation.normalized
@@ -96,7 +105,7 @@ def score_question(question: GoldQuestion, answer: Answer, corpus) -> QuestionSc
             continue
 
         score.citations_existing += 1
-        if number in gold:
+        if f"{citation.document}:{number}" in gold or number in gold_numbers:
             score.citations_correct += 1
 
         quote = _normalize(citation.quote)

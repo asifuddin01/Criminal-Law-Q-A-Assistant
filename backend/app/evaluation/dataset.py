@@ -25,6 +25,10 @@ ACT_CODES: dict[str, int | None] = {
     "EvidenceAct": 24,
     "NariOShishu2000": None,
     "CrPC-Schedule-II": None,
+    # Schedule II is a table of Penal Code offences, not an act. Written without a
+    # space because gold labels split on the first hyphen and the code must survive
+    # that intact.
+    "ScheduleII": None,
 }
 
 
@@ -38,6 +42,11 @@ ACT_CODES: dict[str, int | None] = {
 # detector — if bdlaws republishes a section in different words, this fails loudly
 # rather than quietly degrading every metric computed from the label.
 SECTION_EXPECTATIONS: dict[str, str] = {
+    # Schedule II rows. The phrase asserts the row still describes the offence the
+    # question was written about, not merely that the number resolves.
+    "ScheduleII-302": "murder",
+    "ScheduleII-379": "theft",
+    "ScheduleII-406": "criminal breach of trust",
     "CrPC-46A": "memorandum of arrest",
     "CrPC-46B": "general diary",
     "CrPC-46C": "designate a police-officer",

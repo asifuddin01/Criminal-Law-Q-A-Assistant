@@ -22,7 +22,7 @@ from app.schemas import (
     TranslateRequest,
     TranslateResponse,
 )
-from app.services import CorpusUnavailable, get_corpus, get_qa
+from app.services import CorpusUnavailable, get_corpus, get_qa, get_schedule
 
 router = APIRouter()
 
@@ -91,6 +91,7 @@ async def ask(request: AskRequest, http_request: Request) -> AskResponse:
     """
     try:
         corpus = get_corpus()
+        schedule = get_schedule()
         system = get_qa()
     except CorpusUnavailable as exc:
         raise HTTPException(status_code=503, detail=str(exc)) from exc
@@ -135,7 +136,12 @@ async def ask(request: AskRequest, http_request: Request) -> AskResponse:
         _limiter.forget(caller)
         raise HTTPException(status_code=502, detail=answer.error)
 
-    result = validate(answer, corpus, retrieved_sections=answer.retrieved_sections)
+    result = validate(
+        answer,
+        corpus,
+        schedule=schedule,
+        retrieved_sections=answer.retrieved_sections,
+    )
 
     response = AskResponse(
         question_text=request.question,
@@ -149,6 +155,7 @@ async def ask(request: AskRequest, http_request: Request) -> AskResponse:
         citations=[
             CitationOut(
                 section=c.section,
+                source=c.source,
                 marginal_note=c.marginal_note,
                 part=c.part,
                 chapter=c.chapter,

@@ -19,10 +19,14 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 
-from app.ingest.models import Act
-from app.qa.schema import Answer
+from app.ingest.models import Act, ScheduleEntry
+from app.qa.schema import CRPC, Answer
+from app.retrieval.chunking import schedule_rows
 
 SOURCE_URL = "https://bdlaws.minlaw.gov.bd/act-{act_id}/section-{number}.html"
+SCHEDULE_URL = (
+    "https://bdlaws.minlaw.gov.bd/upload/act/2026-05-05-11-47-47-Schedule-II.pdf"
+)
 
 # Below this length a quotation matches too easily to be evidence of anything.
 MIN_QUOTE_CHARS = 20
@@ -41,6 +45,7 @@ class VerifiedCitation:
     quote: str
     quote_verified: bool
     source_url: str
+    source: str = CRPC
 
 
 @dataclass(slots=True)
@@ -59,6 +64,7 @@ def validate(
     answer: Answer,
     corpus: Act,
     *,
+    schedule: list[ScheduleEntry] | None = None,
     retrieved_sections: list[str] | None = None,
     require_retrieved: bool = True,
 ) -> ValidationResult:
@@ -69,6 +75,12 @@ def validate(
         return result
 
     allowed = set(retrieved_sections or answer.retrieved_sections)
+    # Rows are re-rendered from the parsed entries so a quotation is checked against
+    # the same text the model was shown.
+    schedule_text = {
+        chunk.section_number: chunk.text for chunk in schedule_rows(schedule or [])
+    }
+    schedule_by_section = {e.penal_code_section: e for e in (schedule or [])}
 
     for citation in answer.citations:
         number = citation.normalized
@@ -78,31 +90,63 @@ def validate(
             )
             continue
 
-        section = corpus.section(number)
-        if section is None:
-            result.dropped.append(
-                {"section": number, "reason": "no such section in the corpus"}
-            )
-            continue
+        is_schedule = citation.is_schedule
+        document = citation.document
 
-        if require_retrieved and allowed and number not in allowed:
+        if is_schedule:
+            entry = schedule_by_section.get(number)
+            if entry is None:
+                result.dropped.append(
+                    {
+                        "section": number,
+                        "source": document,
+                        "reason": "no such offence in Schedule II",
+                    }
+                )
+                continue
+            body = schedule_text.get(number, "")
+            note = entry.offence.strip().rstrip(".")
+            part, chapter = None, entry.chapter
+            url = SCHEDULE_URL
+        else:
+            section = corpus.section(number)
+            if section is None:
+                result.dropped.append(
+                    {
+                        "section": number,
+                        "source": document,
+                        "reason": "no such section in the corpus",
+                    }
+                )
+                continue
+            body = section.text
+            note = section.marginal_notes[0] if section.marginal_notes else ""
+            part, chapter = section.part, section.chapter
+            url = SOURCE_URL.format(act_id=corpus.act_id, number=number)
+
+        if require_retrieved and allowed and f"{document}:{number}" not in allowed:
             # The model produced a section it was never shown. Whether or not the
             # section is real, the answer is not grounded in retrieved text.
             result.dropped.append(
-                {"section": number, "reason": "not present in the retrieved context"}
+                {
+                    "section": number,
+                    "source": document,
+                    "reason": "not present in the retrieved context",
+                }
             )
             continue
 
         quote = citation.quote.strip()
         verified = False
         if len(_normalize(quote)) >= MIN_QUOTE_CHARS:
-            verified = _normalize(quote) in _normalize(section.text)
+            verified = _normalize(quote) in _normalize(body)
             if not verified:
                 # Drop the quotation but keep the citation: a fabricated quotation
                 # is worse than none, while the section reference may still be sound.
                 result.dropped.append(
                     {
                         "section": number,
+                        "source": document,
                         "reason": "quoted text does not appear in the section",
                         "quote": quote[:160],
                     }
@@ -112,12 +156,13 @@ def validate(
         result.citations.append(
             VerifiedCitation(
                 section=number,
-                marginal_note=section.marginal_notes[0] if section.marginal_notes else "",
-                part=section.part,
-                chapter=section.chapter,
+                marginal_note=note,
+                part=part,
+                chapter=chapter,
                 quote=quote,
                 quote_verified=verified,
-                source_url=SOURCE_URL.format(act_id=corpus.act_id, number=number),
+                source_url=url,
+                source=document,
             )
         )
 
