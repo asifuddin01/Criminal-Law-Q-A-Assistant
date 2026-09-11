@@ -173,3 +173,33 @@ depends on the developer's environment.
 **Lesson recorded.** Green tests are evidence only if they can fail. This one depended
 on the absence of a file that the setup instructions tell every developer to create.
 
+### 7. A flag that was accepted, documented, and did nothing
+
+**What happened.** A patch added `--wait-for-budget` to the evaluation harness so an
+overnight sweep would sleep through the provider's daily limit instead of stopping.
+The patch applied the change that *registers* the flag and silently failed to apply
+the change that *reads* it, because the surrounding code had been rewritten in an
+earlier session and no longer matched the text being replaced.
+
+The flag then appeared in `--help`. argparse accepted it without complaint. Lint
+passed. The patch script printed "patched". Every signal available short of running
+it said the feature worked.
+
+It did not. A long sweep launched with the flag stopped at the first daily limit,
+having spent hours of budget to produce nothing.
+
+**How it was caught.** By reading the run's output afterwards and noticing it had
+printed the stop-and-explain panel rather than the sleep-and-resume message. Not by
+any check performed at the time of writing.
+
+**Correction.** The flag is wired through `run_stage`, and `tests/test_harness_wiring.py`
+asserts that every CLI flag *reaches* `run_stage`, that `run_stage` accepts everything
+`main` passes, and that the body actually consults the parameter rather than merely
+declaring it.
+
+**Lesson recorded.** String-replacement patching fails open. When the anchor text has
+moved, the edit vanishes and the surrounding code still compiles, still lints, and
+still starts — so the usual signals all report success. The failure is only visible in
+behaviour. Anything edited by pattern-matching against existing source needs a test
+that exercises the path, not a check that the file parses.
+

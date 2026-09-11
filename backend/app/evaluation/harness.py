@@ -202,6 +202,7 @@ async def run_stage(
     concurrency: int,
     use_cache: bool,
     provider_name: str | None = None,
+    wait_for_budget: bool = False,
 ) -> int:
     if stage not in STAGES:
         print(f"stage {stage} is not implemented; available: {sorted(STAGES)}")
@@ -243,20 +244,35 @@ async def run_stage(
 
     semaphore = asyncio.Semaphore(concurrency)
     started = time.perf_counter()
-    try:
-        results = await asyncio.gather(
-            *(_run_one(system, q, model, semaphore, use_cache) for q in questions)
-        )
-    except DailyBudgetExhausted as exhausted:
-        cached = sum(
-            1
-            for q in questions
-            if _read_cache(_cache_key(system.name, model, q.question)) is not None
-        )
-        _explain_exhausted(
-            stage, str(exhausted), cached, len(questions), provider.name
-        )
-        return 3
+
+    while True:
+        try:
+            results = await asyncio.gather(
+                *(_run_one(system, q, model, semaphore, use_cache) for q in questions)
+            )
+            break
+        except DailyBudgetExhausted as exhausted:
+            cached = sum(
+                1
+                for q in questions
+                if _read_cache(_cache_key(system.name, model, q.question)) is not None
+            )
+            if not wait_for_budget:
+                _explain_exhausted(
+                    stage, str(exhausted), cached, len(questions), provider.name
+                )
+                return 3
+
+            # Cached answers survive, so sleeping and retrying resumes rather than
+            # restarts. The delay comes from the provider's own retry-after advice.
+            delay = retry_delay(str(exhausted))
+            print(
+                f"  budget spent — {cached}/{len(questions)} answered; "
+                f"sleeping {delay / 60:.0f} min, then resuming",
+                flush=True,
+            )
+            await asyncio.sleep(delay)
+
     elapsed = time.perf_counter() - started
 
     scores: list[QuestionScore] = []
@@ -376,6 +392,7 @@ def main(argv: list[str] | None = None) -> int:
             concurrency=args.concurrency,
             use_cache=not args.no_cache,
             provider_name=args.provider,
+            wait_for_budget=args.wait_for_budget,
         )
     )
 

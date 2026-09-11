@@ -210,3 +210,35 @@ footer {
   padding: 6px 10px;
 }
 .examples button:hover { border-color: var(--accent); color: var(--accent); }
+
+.panel-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.panel-head h2 { margin-bottom: 12px; }
+
+button.ghost {
+  background: transparent;
+  color: var(--accent);
+  border: 1px solid var(--border-strong);
+  font-size: 12.5px;
+  font-weight: 500;
+  padding: 5px 11px;
+  white-space: nowrap;
+}
+
+button.ghost:hover:not(:disabled) { border-color: var(--accent); }
+
+.answer.bn { font-size: 17px; line-height: 1.75; }
+
+.translation-notice {
+  margin: 14px 0 0;
+  padding-top: 11px;
+  border-top: 1px solid var(--border);
+  font-size: 12.5px;
+  line-height: 1.65;
+  color: var(--ink-muted);
+}

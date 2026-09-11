@@ -1,34 +1,34 @@
 {
   "questions": 95,
-  "measured": 62,
-  "errors": 33,
-  "citations_made": 96,
+  "measured": 95,
+  "errors": 0,
+  "citations_made": 130,
   "citation_existence": 1.0,
   "hallucinated_citation_rate": 0.0,
-  "citation_precision": 0.5208,
-  "answer_hit_rate": 0.5862,
-  "retrieval_recall": 0.5,
-  "excerpt_validity": 0.75,
-  "quotes_checked": 96,
-  "refusal_accuracy": 0.7742,
-  "refused_when_unanswerable": 0.75,
-  "refused_when_answerable": 0.2241,
+  "citation_precision": 0.5487,
+  "answer_hit_rate": 0.5556,
+  "retrieval_recall": 0.4861,
+  "excerpt_validity": 0.7462,
+  "quotes_checked": 130,
+  "refusal_accuracy": 0.7158,
+  "refused_when_unanswerable": 0.6087,
+  "refused_when_answerable": 0.25,
   "by_slice": {
     "direct_lookup": {
       "n": 40,
-      "errors": 2,
-      "decided_correctly": 29,
-      "with_correct_citation": 21,
-      "measured": 38,
-      "refusal_accuracy": 0.7632
+      "errors": 0,
+      "decided_correctly": 30,
+      "with_correct_citation": 22,
+      "measured": 40,
+      "refusal_accuracy": 0.75
     },
     "multi_section": {
       "n": 12,
-      "errors": 2,
-      "decided_correctly": 8,
-      "with_correct_citation": 7,
-      "measured": 10,
-      "refusal_accuracy": 0.8
+      "errors": 0,
+      "decided_correctly": 10,
+      "with_correct_citation": 9,
+      "measured": 12,
+      "refusal_accuracy": 0.8333
     },
     "amended": {
       "n": 10,
@@ -40,33 +40,34 @@
     },
     "unanswerable": {
       "n": 14,
-      "errors": 11,
-      "decided_correctly": 3,
+      "errors": 0,
+      "decided_correctly": 14,
       "with_correct_citation": 0,
-      "measured": 3,
+      "measured": 14,
       "refusal_accuracy": 1.0
     },
     "ambiguous": {
       "n": 9,
-      "errors": 8,
+      "errors": 0,
       "decided_correctly": 0,
       "with_correct_citation": 0,
-      "measured": 1,
+      "measured": 9,
       "refusal_accuracy": 0.0
     },
     "bangla": {
       "n": 10,
-      "errors": 10,
-      "decided_correctly": 0,
-      "with_correct_citation": 0,
-      "measured": 0,
-      "refusal_accuracy": null
+      "errors": 0,
+      "decided_correctly": 6,
+      "with_correct_citation": 3,
+      "measured": 10,
+      "refusal_accuracy": 0.6
     }
   },
   "stage": 2,
   "system": "rag-naive-chunks",
   "provider": "groq",
   "model": "openai/gpt-oss-120b",
-  "elapsed_seconds": 879.6,
-  "cache_hits": 61
+  "elapsed_seconds": 673.5,
+  "cache_hits": 62,
+  "partial": false
 }

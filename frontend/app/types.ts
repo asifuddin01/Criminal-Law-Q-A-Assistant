@@ -39,5 +39,12 @@ export interface Meta {
   source_attribution: string;
 }
 
+export interface Translation {
+  text: string;
+  target: string;
+  model: string;
+  notice: string;
+}
+
 export const API_URL =
   process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8010";

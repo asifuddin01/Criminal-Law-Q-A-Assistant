@@ -85,3 +85,25 @@ class AskResponse(BaseModel):
     retrieved_sections: list[str] = Field(default_factory=list)
     model: str = ""
     disclaimer: str
+
+
+class TranslateRequest(BaseModel):
+    """Translate an answer's explanation.
+
+    Only the explanation is accepted. Statutory excerpts are deliberately not
+    translatable through this endpoint: a quotation is shown with a claim that it
+    was verified verbatim against the source, and that claim cannot survive
+    translation.
+    """
+
+    text: str = Field(min_length=1, max_length=8000)
+    target: str = Field(default="bn", description="'bn' for Bangla, 'en' for English")
+
+
+class TranslateResponse(BaseModel):
+    text: str
+    target: str
+    model: str = ""
+    notice: str = Field(
+        description="Shown with the translation: machine-generated, not the source"
+    )

@@ -1,7 +1,12 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
-import { API_URL, type AskResponse, type Meta } from "./types";
+import {
+  API_URL,
+  type AskResponse,
+  type Meta,
+  type Translation,
+} from "./types";
 
 const EXAMPLES = [
   "When may a police officer arrest without a warrant?",
@@ -16,6 +21,9 @@ export default function Page() {
   const [result, setResult] = useState<AskResponse | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  const [translation, setTranslation] = useState<Translation | null>(null);
+  const [translating, setTranslating] = useState(false);
+  const [showTranslation, setShowTranslation] = useState(false);
 
   useEffect(() => {
     fetch(`${API_URL}/api/meta`)
@@ -32,6 +40,8 @@ export default function Page() {
       setBusy(true);
       setError(null);
       setResult(null);
+      setTranslation(null);
+      setShowTranslation(false);
       try {
         const response = await fetch(`${API_URL}/api/ask`, {
           method: "POST",
@@ -54,6 +64,37 @@ export default function Page() {
     },
     [busy],
   );
+
+  const toggleTranslation = useCallback(async () => {
+    if (!result) return;
+    if (translation) {
+      setShowTranslation((shown) => !shown);
+      return;
+    }
+
+    setTranslating(true);
+    try {
+      const response = await fetch(`${API_URL}/api/translate`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          text: result.refused ? result.reason || result.answer : result.answer,
+          target: "bn",
+        }),
+      });
+      const body = await response.json();
+      if (response.ok) {
+        setTranslation(body as Translation);
+        setShowTranslation(true);
+      } else {
+        setError(body?.detail ?? "Translation failed");
+      }
+    } catch {
+      setError("Could not reach the translation endpoint.");
+    } finally {
+      setTranslating(false);
+    }
+  }, [result, translation]);
 
   const disclaimer = result?.disclaimer ?? meta?.disclaimer;
 
@@ -117,16 +158,38 @@ export default function Page() {
       {result && (
         <>
           <section className={`panel${result.refused ? " refused" : ""}`}>
-            <h2>{result.refused ? "No answer given" : "Answer"}</h2>
-            <div className="answer">
-              {result.refused ? result.reason || result.answer : result.answer}
+            <div className="panel-head">
+              <h2>{result.refused ? "No answer given" : "Answer"}</h2>
+              <button
+                type="button"
+                className="ghost"
+                onClick={() => void toggleTranslation()}
+                disabled={translating}
+              >
+                {translating
+                  ? "অনুবাদ হচ্ছে…"
+                  : showTranslation
+                    ? "Show in English"
+                    : "বাংলায় দেখুন"}
+              </button>
             </div>
+            <div className={`answer${showTranslation ? " bn" : ""}`}>
+              {showTranslation && translation
+                ? translation.text
+                : result.refused
+                  ? result.reason || result.answer
+                  : result.answer}
+            </div>
+            {showTranslation && translation && (
+              <p className="translation-notice">{translation.notice}</p>
+            )}
           </section>
 
           {result.citations.length > 0 && (
             <section className="panel">
               <h2>
                 Citations — {result.citations.length} verified against the source
+                {showTranslation && " · quoted text stays in English"}
               </h2>
               {result.citations.map((citation) => (
                 <article className="cite" key={`${citation.section}-${citation.quote}`}>

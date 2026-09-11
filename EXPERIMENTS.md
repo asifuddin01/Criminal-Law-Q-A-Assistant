@@ -17,7 +17,7 @@ advance so that a stage producing no improvement is visibly a result rather than
 |---|---|---|
 | 0 | Harness, gold dataset, no retrieval | Done |
 | 1 | LLM-only baseline | Done |
-| 2 | Naive fixed-size chunking, dense retrieval | Complete on local model; hosted run partial |
+| 2 | Naive fixed-size chunking, dense retrieval | Complete on both models |
 | 3 | Legal-aware chunking on section boundaries | Complete on local model; hosted run pending quota |
 | 4 | Hybrid retrieval (BM25 + dense, RRF) | Not started |
 | 5 | Reranking | Not started |
@@ -37,11 +37,11 @@ refusal accuracy are reported per stage against the frozen gold set.
 | Stage | Recall@10 | Citation precision | Excerpt validity | Refusal accuracy |
 |---|---|---|---|---|
 | 1 — LLM only | n/a (no retrieval) | 18.4% | **0.0%** | 85.0% |
-| 2 — naive chunks | 52.8% (retrieval-only) | 52.1%* | 75.0%* | 77.4%* |
+| 2 — naive chunks | 48.6% | 54.9% | 74.6% | 71.6% |
 | 3 — legal-aware chunks | **90.3%** (retrieval-only) | pending | pending | pending |
 
-\* Stage 2 generation figures are from an incomplete sweep (62 of 95 measured, Bangla
-slice lost entirely to rate limits) and are provisional. Retrieval figures are complete.
+Hosted stage 2 is now complete at 95 of 95 measured, zero errors, after the harness
+learned to sleep through the daily budget and resume from cache.
 
 **Complete progression on the local model** (`qwen2.5:3b-instruct`, all three stages,
 93-94 of 95 measured each). Absolute quality is lower than the hosted model, but the
@@ -436,4 +436,29 @@ model quality.
 
 **Next step.** Finish stage 2 and run stage 3 on the hosted model. Then a relevance
 floor for the out-of-scope regression above.
+
+### 2026-09-11 — Hosted stage 2 completed by waiting out the budget
+
+**Result.** 95 of 95 measured, no errors, against the 62 of 95 that the earlier
+partial sweep managed. The run slept through the per-day limit and resumed from
+cache rather than stopping.
+
+| Metric | Partial sweep (62/95) | Complete sweep (95/95) |
+|---|---|---|
+| Retrieval recall | 50.0% | 48.6% |
+| Citation precision | 52.1% | 54.9% |
+| Answer hit rate | 58.6% | 55.6% |
+| Excerpt validity | 75.0% | 74.6% |
+| Refusal accuracy | 77.4% | **71.6%** |
+
+Most figures barely moved, which is reassuring about the ones that did. Refusal
+accuracy fell by nearly six points once the missing questions were measured, because
+the slices the partial sweep lost were exactly the ones that test refusal: ambiguous
+(9 of 9 lost) and unanswerable (11 of 14 lost). The partial number was not noisy, it
+was biased — and biased in the flattering direction, which is the direction that does
+not prompt investigation.
+
+That is the concrete case for refusing to write results from an incomplete sweep. Had
+the partial numbers been reported, the system would have looked six points better at
+the one behaviour it is least good at.
 

@@ -8,6 +8,7 @@ from app import __version__
 from app.config import get_settings
 from app.legal import DISCLAIMER, SOURCE_ATTRIBUTION
 from app.llm import ProviderUnavailable, get_provider
+from app.qa.translate import NOTICE, UnsupportedLanguage, translate
 from app.qa.validation import validate
 from app.schemas import (
     AskRequest,
@@ -17,6 +18,8 @@ from app.schemas import (
     HealthResponse,
     MetaResponse,
     ProviderInfo,
+    TranslateRequest,
+    TranslateResponse,
 )
 from app.services import CorpusUnavailable, get_corpus, get_qa
 
@@ -124,4 +127,35 @@ async def ask(request: AskRequest) -> AskResponse:
         retrieved_sections=answer.retrieved_sections,
         model=answer.model,
         disclaimer=DISCLAIMER,
+    )
+
+
+@router.post("/translate", response_model=TranslateResponse, tags=["qa"])
+async def translate_answer(request: TranslateRequest) -> TranslateResponse:
+    """Translate an answer's explanation into Bangla or English.
+
+    Offered on demand rather than applied automatically: it costs a second model
+    call, and most readers of an English answer do not want one.
+
+    Statutory excerpts are not translated here and are not accepted by this
+    endpoint. They are shown with a claim that they were verified verbatim against
+    the source, and translating them would leave that claim asserting something
+    untrue.
+    """
+    try:
+        translated = await translate(
+            request.text, target=request.target, provider=get_provider()
+        )
+    except UnsupportedLanguage as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+    except ProviderUnavailable as exc:
+        raise HTTPException(
+            status_code=502, detail=f"language model unavailable: {exc}"
+        ) from exc
+
+    return TranslateResponse(
+        text=translated,
+        target=request.target,
+        model=getattr(get_provider(), "_chat_model", ""),
+        notice=NOTICE.get(request.target, NOTICE["en"]),
     )
