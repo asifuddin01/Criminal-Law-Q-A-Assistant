@@ -73,3 +73,25 @@ we do not reconstruct superseded text, because bdlaws publishes only the current
 consolidation and the footnotes do not always preserve the replaced wording in full. This is
 recorded as a limitation rather than approximated, since a legal assistant that guesses at
 historical text is worse than one that declines to provide it.
+
+## Implementation note, 2026-09-12
+
+This decision was recorded before the code existed and was, for some weeks, only recorded.
+`parse_act` took a `role` argument defaulting to `OPERATIVE`, nothing derived it, and nothing
+downstream checked it. The guarantee held because no amending act had been ingested, which is
+not the same thing as holding.
+
+It is now enforced, and at a different point than this ADR describes. The text above proposes
+a **retrieval filter** — operative and schedule documents only, applied to the retrieved set.
+What is implemented instead excludes a non-operative act from the **index**: `build` refuses
+one outright, and the incremental update skips it and names what it skipped.
+
+Index time is the stronger place for it. A retrieval filter leaves the amending text in the
+index and relies on every query path applying the filter; excluding it at build time means
+there is nothing to filter, and a path that forgets to filter cannot retrieve what was never
+embedded. The cost is that changing the rule requires a rebuild rather than a redeploy, which
+for a corpus of this size is under a minute.
+
+The role is derived from the act's own title, as the Consequences section requires
+(`infer_role`), and asserted in tests. An explicit `role=` still overrides the inference, for
+a document that names itself unusually.
