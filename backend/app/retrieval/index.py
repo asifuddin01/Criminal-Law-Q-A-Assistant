@@ -12,6 +12,7 @@ project is actually measuring. See ADR 0009.
 
 from __future__ import annotations
 
+import hashlib
 import json
 import pathlib
 import time
@@ -86,6 +87,22 @@ class VectorIndex:
 
     def __len__(self) -> int:
         return len(self.chunks)
+
+    @property
+    def content_fingerprint(self) -> str:
+        """Identifies what this index can retrieve.
+
+        Derived from each chunk's id and content hash, so it changes exactly when
+        the retrievable text changes and not when unrelated metadata does. An
+        answer cached against one corpus must not be served after the corpus is
+        updated: the answer would be attributed to text the system no longer holds.
+        """
+        digest = hashlib.sha256()
+        for chunk_id, content_hash in sorted(
+            (c.chunk_id, c.content_hash) for c in self.chunks
+        ):
+            digest.update(f"{chunk_id}\x00{content_hash}\x00".encode())
+        return digest.hexdigest()[:12]
 
     @classmethod
     def build(

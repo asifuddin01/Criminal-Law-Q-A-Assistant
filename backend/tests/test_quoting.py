@@ -132,3 +132,20 @@ def test_a_label_the_model_invented_does_not_verify_by_being_trimmed():
     section_54 = "54. (1) Any police-officer may, without an order from a Magistrate, arrest."
     assert not check_quote("Section 54.", section_54).verified
     assert not check_quote("Section 54. and nothing else whatsoever", section_54).verified
+
+
+def test_a_space_left_where_a_footnote_marker_stood_is_not_a_mismatch():
+    """Regression. Markers sit between a word and its punctuation.
+
+    Stripping "the Evidence Act, 1872 [7], section 24" leaves "1872 , section 24".
+    The gap is an artefact of ingestion; a quotation of the law does not have it.
+    """
+    body = (
+        "163.(1) No police-officer shall offer any such inducement as is mentioned "
+        "in the Evidence Act, 1872 , section 24."
+    )
+    quote = (
+        "No police-officer shall offer any such inducement as is mentioned in the "
+        "Evidence Act, 1872, section 24."
+    )
+    assert check_quote(quote, body).verified

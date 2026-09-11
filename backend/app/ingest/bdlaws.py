@@ -92,8 +92,20 @@ def _clean(text: str) -> str:
 
     The source sets marginal notes across lines ("Short title\n\tCommencement") and
     pads text nodes with tabs, neither of which is meaningful.
+
+    A space left in front of punctuation is also removed. Footnote markers sit
+    between a word and the punctuation that follows it — "the Evidence Act, 1872
+    <sup>7</sup>, section 24" — so removing the marker leaves "1872 , section 24",
+    a gap the statute does not contain and no one quoting it reproduces. Twenty-seven
+    of these survived into the ingested Code before this ran.
     """
-    return re.sub(r"\s+", " ", text.replace("\xa0", " ")).strip()
+    text = re.sub(r"\s+", " ", text.replace("\xa0", " ")).strip()
+    text = re.sub(r"\s+([,.;:)\]])", r"\1", text)
+    # A full stop left in front of a subsection is the same artefact seen from the
+    # other side: in "7.(3)" the "7" was the marker, and removing it leaves ".(3)".
+    # Narrow on purpose — only a stop directly before an opening bracket, so an
+    # ellipsis or any sentence that genuinely opens with punctuation is untouched.
+    return re.sub(r"^\.\s*(?=\()", "", text)
 
 
 def _strip_markers(node: Tag) -> tuple[str, list[int]]:

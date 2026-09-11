@@ -143,3 +143,106 @@ def test_summary_reports_the_proportion_reused(counting_embed):
 
     assert "embedded 1 of 5" in result.summary()
     assert "80% reused" in result.summary()
+
+
+# --- an update must read what the index is, not assume ------------------------
+
+
+def _index(chunks) -> VectorIndex:
+    return VectorIndex(chunks, np.zeros((len(chunks), DIM), dtype=np.float32), "m")
+
+
+def _chunk(chunk_id, *, strategy, document=CRPC, section="1", text="text") -> Chunk:
+    return Chunk(
+        chunk_id=chunk_id,
+        text=text,
+        section_number=section,
+        marginal_note="",
+        part=None,
+        chapter=None,
+        strategy=strategy,
+        document=document,
+    )
+
+
+def test_the_shape_of_an_index_is_read_from_its_own_chunks():
+    """Regression, and a bad one.
+
+    `desired_chunks` derived the legal-aware chunk set for whatever index it was
+    pointed at. Updating the naive-chunk index therefore replaced its 465 naive
+    chunks with 621 legal-aware ones plus the schedule and the Penal Code — making
+    the stage 2 and stage 3 indexes copies of the stage 4 corpus. The chunking
+    comparison those two stages exist to measure would have gone on reporting
+    numbers, from a corpus that no longer differed.
+    """
+    from app.retrieval.update import shape_of
+
+    naive = _index([_chunk("naive-CrPC-00000", strategy="naive_fixed_size")])
+    shape = shape_of(naive)
+
+    assert shape.strategy == "naive_fixed_size"
+    assert shape.with_schedule is False
+
+
+def test_an_index_holding_schedule_rows_is_recognised_as_holding_them():
+    from app.retrieval.chunking import SCHEDULE_II
+    from app.retrieval.update import shape_of
+
+    mixed = _index(
+        [
+            _chunk("legal-CrPC-54-0", strategy="legal_aware"),
+            _chunk("sch2-379-1", strategy="schedule_rows", document=SCHEDULE_II),
+        ]
+    )
+    shape = shape_of(mixed)
+
+    assert shape.strategy == "legal_aware"
+    assert shape.with_schedule is True
+
+
+def test_an_index_mixing_section_strategies_refuses_rather_than_guessing():
+    from app.retrieval.update import shape_of
+
+    mixed = _index(
+        [
+            _chunk("a", strategy="legal_aware"),
+            _chunk("b", strategy="naive_fixed_size"),
+        ]
+    )
+
+    with pytest.raises(ValueError, match="mixes chunking strategies"):
+        shape_of(mixed)
+
+
+def test_an_update_that_would_replace_the_index_refuses(monkeypatch, capsys):
+    """A rebuild wearing an update's clothes is the failure mode worth catching.
+
+    The shape fix stops this particular cause. The guard is there for the next one:
+    whatever the reason, an operation that adds and removes most of an index has
+    been pointed at the wrong definition, and the runs already recorded against
+    that index stop being comparable the moment it silently changes underneath them.
+    """
+    from app.retrieval import update as update_module
+
+    existing = _index(
+        [_chunk(f"legal-CrPC-{n}-0", strategy="legal_aware") for n in range(100)]
+    )
+    replacement = [
+        _chunk(f"naive-CrPC-{n:05d}", strategy="naive_fixed_size") for n in range(100)
+    ]
+
+    monkeypatch.setattr(update_module.VectorIndex, "exists", classmethod(lambda c, n: True))
+    monkeypatch.setattr(update_module.VectorIndex, "load", classmethod(lambda c, n: existing))
+    monkeypatch.setattr(
+        update_module, "desired_chunks", lambda shape: (replacement, ["stand-in"])
+    )
+
+    code = update_module.main(["--index", "legal_aware"])
+    out = capsys.readouterr().out
+
+    assert code == 2
+    assert "refusing" in out
+    assert "--force" in out
+    # Nothing was embedded and nothing was saved.
+    assert len(existing) == 100
+    assert all(c.strategy == "legal_aware" for c in existing.chunks)

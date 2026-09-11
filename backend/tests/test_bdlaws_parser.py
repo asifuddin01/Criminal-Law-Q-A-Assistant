@@ -13,6 +13,7 @@ from datetime import date
 import pytest
 
 from app.ingest import DocumentRole, Operation, parse_act
+from app.ingest.bdlaws import _clean
 
 FIXTURE = pathlib.Path(__file__).parent / "fixtures" / "mini_act.html"
 CORPUS = pathlib.Path(__file__).parents[2] / "data" / "raw" / "act-print-75.html"
@@ -202,3 +203,50 @@ def test_corpus_amendment_markers_resolve(crpc):
     for section in crpc.sections:
         unknown = set(section.footnote_markers) - known
         assert not unknown, f"section {section.number} cites unknown footnotes {unknown}"
+
+
+# --- footnote removal leaves no trace of itself ------------------------------
+
+
+def test_footnote_removal_does_not_leave_a_gap_before_punctuation():
+    """Regression. A marker sits between a word and the punctuation after it.
+
+    "the Evidence Act, 1872 [7], section 24" becomes "1872 , section 24" once the
+    marker goes. Twenty-seven of these reached the ingested Code. The gap is not in
+    the statute, it is visible to anyone reading a quoted excerpt, and it made a
+    faithful quotation of section 163 fail verification against its own section.
+    """
+    assert _clean("the Evidence Act, 1872 , section 24") == (
+        "the Evidence Act, 1872, section 24"
+    )
+    assert _clean("Procedure, 1898 ; and it shall") == "Procedure, 1898; and it shall"
+    assert _clean("headman , accountant") == "headman, accountant"
+
+
+def test_a_subsection_whose_number_was_a_marker_does_not_keep_the_stop():
+    """The same artefact from the other side: in "7.(3)" the 7 is the marker."""
+    assert _clean(". (3) The sessions divisions") == "(3) The sessions divisions"
+
+
+def test_punctuation_that_belongs_to_the_text_is_left_alone():
+    assert _clean("...continued") == "...continued"
+    assert _clean("normal (a) text") == "normal (a) text"
+    assert _clean(". and then") == ". and then"
+
+
+@pytest.mark.skipif(not CORPUS.exists(), reason="corpus not fetched")
+def test_the_ingested_code_carries_no_spacing_artefacts():
+    """Checked against the real act, not a fixture: the count was 27."""
+    import re
+
+    act = parse_act(
+        CORPUS.read_text(encoding="utf-8", errors="replace"),
+        act_id=75,
+        source_url="https://bdlaws.minlaw.gov.bd/act-print-75.html",
+    )
+    offenders = [
+        (s.number, m.group(0))
+        for s in act.sections
+        for m in re.finditer(r"\S\s+[,;:]", s.text)
+    ]
+    assert offenders == []

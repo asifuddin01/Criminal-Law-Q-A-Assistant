@@ -123,14 +123,26 @@ class RetrievalQA:
 
     @property
     def fingerprint(self) -> str:
-        """Identifies this system's configuration for caching.
+        """Identifies everything that determines the answer, apart from the question.
 
-        Includes the prompt. A cache keyed only on the question would serve answers
-        produced by an earlier prompt as though they were the new prompt's, so a
-        prompt change would show no effect and the experiment would silently
-        measure the previous one.
+        The prompt, the corpus the index holds, and how many chunks are retrieved.
+        A cache keyed only on the question would serve answers produced by an
+        earlier configuration as though they were the new one's, so the change
+        would show no effect and the experiment would silently re-measure what came
+        before.
+
+        The corpus belongs here because `index_name` did not put it here. That
+        property's docstring claimed to be part of the cache key and was — in the
+        API, whose key is assembled separately — while the evaluation harness keyed
+        on the prompt alone. Nothing collided, because each stage has its own name.
+        Rebuilding an index in place, which is exactly what the incremental update
+        path exists to do, would have served every answer from the corpus before it.
         """
-        return hashlib.sha256(SYSTEM_PROMPT.encode("utf-8")).hexdigest()[:12]
+        payload = (
+            f"{SYSTEM_PROMPT}\x00{self._index.model_name}"
+            f"\x00{self._index.content_fingerprint}\x00k={self._k}"
+        )
+        return hashlib.sha256(payload.encode("utf-8")).hexdigest()[:12]
 
     async def answer(self, question: str, *, extra_chunks=None) -> Answer:
         """Answer from the corpus, plus any chunks the caller supplies.

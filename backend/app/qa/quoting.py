@@ -46,6 +46,12 @@ _ELLIPSIS = re.compile(r"\s*(?:\.\s*\.\s*\.|…)\s*")
 _LEADING_LABEL = re.compile(r"^\s*(?:section\s+)?\d+\s*-?\s*[A-Za-z]{0,3}\s*[.\-—:]\s*", re.I)
 
 
+# A space in front of punctuation, which a quotation never carries. Ingestion now
+# closes these up at the source (they were footnote markers), but a quotation is
+# compared against whatever the corpus holds, and a corpus is re-fetched.
+_SPACED_PUNCTUATION = re.compile(r"\s+([,.;:)\]])")
+
+
 def canonical(text: str) -> str:
     """The section's own words, case- and whitespace-insensitive.
 
@@ -55,7 +61,8 @@ def canonical(text: str) -> str:
     """
     text = _ELIDED_BY_AMENDMENT.sub(" ", text)
     text = text.replace("[", " ").replace("]", " ")
-    return " ".join(text.split()).lower()
+    text = " ".join(text.split()).lower()
+    return _SPACED_PUNCTUATION.sub(r"\1", text)
 
 
 @dataclass(frozen=True, slots=True)
