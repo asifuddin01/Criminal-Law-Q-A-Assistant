@@ -1,0 +1,43 @@
+export interface Citation {
+  section: string;
+  marginal_note: string;
+  part: string | null;
+  chapter: string | null;
+  quote: string;
+  quote_verified: boolean;
+  source_url: string;
+}
+
+export interface DroppedCitation {
+  section: string;
+  reason: string;
+  quote: string | null;
+}
+
+export interface AskResponse {
+  question_text: string;
+  answer: string;
+  refused: boolean;
+  reason: string;
+  citations: Citation[];
+  dropped_citations: DroppedCitation[];
+  retrieved_sections: string[];
+  model: string;
+  disclaimer: string;
+}
+
+export interface Meta {
+  app_name: string;
+  version: string;
+  provider: {
+    name: string;
+    chat_model: string;
+    capabilities: string[];
+    reachable: boolean | null;
+  };
+  disclaimer: string;
+  source_attribution: string;
+}
+
+export const API_URL =
+  process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8010";

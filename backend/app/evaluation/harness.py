@@ -83,6 +83,25 @@ def _is_daily_limit(message: str) -> bool:
     return "tokens per day" in message.lower() or "TPD" in message
 
 
+_RETRY_AFTER = re.compile(r"try again in ([0-9hms.]+)")
+
+
+def retry_delay(message: str, *, default: float = 600.0, cap: float = 1800.0) -> float:
+    """Seconds to wait before resuming, taken from the provider's own advice.
+
+    The daily allowance refills continuously rather than resetting at a fixed hour,
+    so the provider's retry-after is a real estimate of when the next request fits,
+    not a placeholder.
+    """
+    match = _RETRY_AFTER.search(message)
+    if not match:
+        return default
+    text, seconds = match.group(1), 0.0
+    for value, unit in re.findall(r"([0-9.]+)([hms])", text):
+        seconds += float(value) * {"h": 3600, "m": 60, "s": 1}[unit]
+    return min(cap, max(30.0, seconds + 15.0))
+
+
 async def _run_one(
     system, question: GoldQuestion, model: str, semaphore, use_cache: bool
 ) -> tuple[Answer, bool]:
@@ -337,6 +356,11 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--concurrency", type=int, default=2)
     parser.add_argument(
         "--no-cache", action="store_true", help="ignore cached model responses"
+    )
+    parser.add_argument(
+        "--wait-for-budget",
+        action="store_true",
+        help="on hitting the per-day token limit, sleep and resume instead of stopping",
     )
     parser.add_argument(
         "--provider",

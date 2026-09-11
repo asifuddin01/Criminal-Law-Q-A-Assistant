@@ -39,3 +39,7 @@ eval/runs/scratch/
 .DS_Store
 .idea/
 .vscode/
+
+# Next.js build output
+frontend/.next/
+frontend/next-env.d.ts
