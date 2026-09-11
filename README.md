@@ -27,7 +27,7 @@ is the honest state of the repository, not a roadmap.
 | Ingestion pipeline | Parser working, tested — 522 sections, 599 amendments |
 | Retrieval and generation | Complete on local model; hosted stages 2-3 pending quota |
 | Evaluation dataset | Built — 95 questions, all labels validated |
-| Frontend | Not built |
+| Frontend | Working — question input, verified citations, validator transparency |
 
 ## Architecture
 
@@ -61,6 +61,7 @@ covers every input path.
 | Layer | Choice |
 |---|---|
 | Backend | FastAPI, Python 3.12 ([why](docs/adr/0008-web-framework-choice.md)) |
+| Index | Exact in-process NumPy search ([why](docs/adr/0009-exact-in-process-vector-search.md)) |
 | Frontend | Next.js |
 | Generation | Groq `openai/gpt-oss-120b`, Ollama `qwen2.5:3b-instruct` fallback |
 | Speech | Groq `whisper-large-v3` |
@@ -99,21 +100,46 @@ To run entirely locally instead, set `LLM_PROVIDER=ollama` and pull the model:
 ollama pull qwen2.5:3b-instruct
 ```
 
-Run the service:
+Ingest the corpus and build the retrieval index:
 
 ```bash
-cd backend && uv run uvicorn app.main:app --reload
+cd backend && uv run python -m app.ingest && uv run python -m app.retrieval.build --strategy legal_aware
 ```
 
-- Interactive API docs: `http://localhost:8000/docs`
+Run the API:
+
+```bash
+cd backend && uv run uvicorn app.main:app --port 8010 --reload
+```
+
+- Interactive API docs: `http://localhost:8010/docs`
 - Liveness: `GET /api/health` — deliberately does not touch the model provider
-- Capabilities: `GET /api/meta?probe=true` — reports the active provider and what it supports
+- Capabilities: `GET /api/meta?probe=true` — active provider and what it supports
+- Ask: `POST /api/ask` with `{"question": "...", "language": "en"}`
+
+Run the web client, in a second terminal:
+
+```bash
+cd frontend && npm install && npm run dev
+```
+
+Then open `http://localhost:3000`.
 
 Tests:
 
 ```bash
 cd backend && uv run pytest
 ```
+
+Useful checks:
+
+```bash
+cd backend && uv run python -m app.llm.models
+```
+
+prints the provider's live model catalogue and flags anything configured but missing —
+model identifiers differ between accounts and a stale one fails every request while
+looking like a credential problem.
 
 ## Data ingestion and update
 
