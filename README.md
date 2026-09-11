@@ -200,6 +200,14 @@ full. Approximating this would be worse than declining it.
 **English corpus.** Bangla questions are supported against English statutory text. The Bangla
 texts on bdlaws are not yet ingested, so answers and quoted excerpts are in English.
 
+**Translation quality depends on the model, and the local fallback is not good
+enough for it.** Answers can be translated into Bangla on demand. The hosted model
+produces sound legal Bangla; `qwen2.5:3b-instruct` produces text a Bangla reader would
+find wrong in places, inventing phrases that are not Bengali legal terms. The feature
+is therefore usable on the hosted provider and should be treated as unavailable on the
+local one. Statutory excerpts are never translated in either case — see
+[the translation module](backend/app/qa/translate.py) for why.
+
 **Image input has no provider yet.** The Groq catalogue available to this project
 offers no vision-capable model, so image questions cannot currently be served. The
 capability system degrades correctly rather than failing at call time, but the feature
