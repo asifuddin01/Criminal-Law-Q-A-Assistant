@@ -91,8 +91,8 @@ flowchart TB
     CLS -->|yes| SLOOK["Schedule II lookup"]
     CLS -->|no| RET
 
-    RET["Hybrid retrieval<br/>BM25 + dense, RRF"] --> FILT["Role filter<br/>operative + schedule only"]
-    FILT --> RR["Rerank"]
+    RET["Dense retrieval<br/>exact cosine, in-process"] --> FILT["Role filter<br/>operative + schedule only"]
+    FILT --> CTX
     SLOOK --> CTX
     RR --> CTX["Grounded context"]
 
@@ -186,10 +186,10 @@ re-embeds only sections whose hash changed.
 | Layer | Choice | Reason |
 |---|---|---|
 | Backend | FastAPI, Python 3.12 | Async, typed, first-class OpenAPI. Alternatives examined in [ADR 0008](adr/0008-web-framework-choice.md) |
-| Frontend | Next.js | Streaming answers, straightforward deploy |
+| Frontend | Next.js | Straightforward deploy. Answers are **not** streamed, and cannot be: the citation gate has to see a complete answer before any of it is shown, or the interface would stream text and then retract a citation that failed validation |
 | Generation | Groq free tier, Ollama fallback | One key covers text, speech and vision; local path keeps the demo alive offline. [ADR 0003](adr/0003-llm-provider-strategy.md) |
 | Embeddings | multilingual MiniLM (ONNX) | Bangla questions against English text. [ADR 0010](adr/0010-embedding-model.md) |
-| Retrieval | BM25 + dense, RRF fusion | Statutory language is precise; lexical match on section numbers and defined terms matters as much as semantics |
+| Retrieval | Dense, plus structured offence lookup | Hybrid retrieval was the plan; the question it was for — "is theft bailable?" — is answered by looking the offence up in Schedule II by name, not by lexical overlap. See the progression note in [EXPERIMENTS.md](../EXPERIMENTS.md) |
 | Index | Exact in-process NumPy search | Corpus is thousands of chunks, not millions; exact search removes a confound from the chunking experiments. [ADR 0009](adr/0009-exact-in-process-vector-search.md) |
 
 Retrieval choices are provisional and settled by measurement, not assertion — see

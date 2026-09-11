@@ -105,7 +105,7 @@ covers every input path.
 | Speech | Groq `whisper-large-v3` (English and Bangla) |
 | Image | tesseract OCR, local (`eng+ben`) |
 | Embeddings | `paraphrase-multilingual-MiniLM-L12-v2` (ONNX) |
-| Retrieval | Dense (exact, in-process) plus direct offence lookup; BM25 + RRF at stage 4 |
+| Retrieval | Dense (exact, in-process) plus direct offence lookup |
 
 Groq and Ollama both expose an OpenAI-compatible API, so one client implementation serves
 both, and one credential covers generation and transcription. Providers declare
@@ -256,10 +256,22 @@ penalises correct retrieval and rewards incorrect retrieval, invisibly.
 ## Experiments and results
 
 Running log with hypotheses, configurations, results and decisions:
-**[EXPERIMENTS.md](EXPERIMENTS.md)**.
+**[EXPERIMENTS.md](EXPERIMENTS.md)**. Charts and the full table:
+[eval/runs/charts/](eval/runs/charts/).
 
-No measured results yet. The first entry records the source survey and the ingestion reversal
-it caused.
+Four stages, each adding exactly one thing to the one before, measured on the same frozen
+gold set so any movement is attributable:
+
+| Stage | What changes |
+|---|---|
+| 1 — LLM only | No retrieval. Establishes what the model invents unaided. |
+| 2 — naive chunks | Dense retrieval over fixed-size windows that ignore section boundaries. |
+| 3 — legal-aware chunks | The same pipeline, chunked on the section — the unit of citation. |
+| 4 — full corpus | Schedule II and the Penal Code added, plus structured offence lookup. |
+
+The stage 1 baseline is not a formality. It is the control that makes the excerpt check
+meaningful: quoting from memory with no text in front of it, **not one of its quotations is
+real**, on either model. Every later stage is measured against that.
 
 ## Limitations
 
@@ -303,6 +315,11 @@ Every citation links back to the official source precisely so that a user can ch
 Ingest the Bangla texts for bilingual excerpts. Extend the corpus under the ADR 0007
 criterion. Investigate act-aware retrieval ranking, which becomes a real problem once general
 and special provisions on the same subject compete for the same query.
+
+Hybrid retrieval — BM25 fused with dense by reciprocal rank — was planned as stage 4 and
+replaced by structured offence lookup, which addressed the question that motivated it more
+directly. It is untried rather than rejected, and remains the obvious next retrieval
+experiment.
 
 ## Documentation
 

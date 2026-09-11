@@ -19,15 +19,32 @@ advance so that a stage producing no improvement is visibly a result rather than
 | 1 | LLM-only baseline | Done |
 | 2 | Naive fixed-size chunking, dense retrieval | Complete on both models |
 | 3 | Legal-aware chunking on section boundaries | Complete on local model; hosted run pending quota |
-| 4 | Hybrid retrieval (BM25 + dense, RRF) | Not started |
-| 5 | Reranking | Not started |
-| 6 | Prompt and refusal behaviour | Not started |
-| 7 | Citation validation gate | Not started |
-| 8 | Amendment-aware retrieval | Not started |
+| 4 | Full corpus: Schedule II and Penal Code, with structured offence lookup | Complete on local model |
+| — | Hybrid retrieval (BM25 + dense, RRF) | **Planned, then dropped — see below** |
+| — | Reranking | Not started |
+| — | Prompt and refusal behaviour | Folded into stages 3 and 4 rather than run separately |
+| — | Citation validation gate | Built from stage 2 onward, not staged separately |
+| — | Amendment-aware retrieval | Not started |
 
 Stage 1 exists to establish the hallucination floor. A retrieval system that cannot beat a
 bare model on citation accuracy is not earning its complexity, and without the baseline that
 claim cannot be made either way.
+
+**Stage 4 was planned as hybrid retrieval and is not.** The reasoning for BM25 was that
+statutory language is precise, and lexical matching on section numbers and defined terms
+should matter as much as semantics. That reasoning was right about the problem and wrong
+about the fix.
+
+The failure it was aimed at is "is theft a bailable offence?", which embeds closest to the
+sections *about* bail while the row that decides it ranks nowhere. BM25 would not have found
+that row either: the question contains the word "theft" and the row's usefulness is that it
+classifies an offence, not that it shares vocabulary with the question. What answers it is a
+structured lookup of the offence by name in Schedule II — deterministic, and it either finds
+the row or does not. That is what stage 4 became.
+
+Hybrid retrieval remains untried rather than rejected, and is listed under future work. It is
+recorded here because a plan that changes silently is indistinguishable from a plan that was
+never followed.
 
 ## Results summary
 
