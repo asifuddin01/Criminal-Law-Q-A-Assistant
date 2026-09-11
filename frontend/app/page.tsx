@@ -1,10 +1,12 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
+import { useRef } from "react";
 import {
   API_URL,
   type AskResponse,
   type Meta,
+  type Transcription,
   type Translation,
 } from "./types";
 
@@ -24,6 +26,9 @@ export default function Page() {
   const [translation, setTranslation] = useState<Translation | null>(null);
   const [translating, setTranslating] = useState(false);
   const [showTranslation, setShowTranslation] = useState(false);
+  const [recording, setRecording] = useState(false);
+  const [transcribing, setTranscribing] = useState(false);
+  const recorder = useRef<MediaRecorder | null>(null);
 
   useEffect(() => {
     fetch(`${API_URL}/api/meta`)
@@ -96,6 +101,67 @@ export default function Page() {
     }
   }, [result, translation]);
 
+  const canSpeak = meta?.provider.capabilities.includes("transcription") ?? false;
+
+  const stopRecording = useCallback(() => {
+    recorder.current?.stop();
+    recorder.current = null;
+    setRecording(false);
+  }, []);
+
+  const startRecording = useCallback(async () => {
+    setError(null);
+    let stream: MediaStream;
+    try {
+      stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+    } catch {
+      setError(
+        "Microphone access was refused. Allow it in your browser, or type the question instead.",
+      );
+      return;
+    }
+
+    const chunks: BlobPart[] = [];
+    const media = new MediaRecorder(stream);
+    recorder.current = media;
+
+    media.ondataavailable = (event) => {
+      if (event.data.size) chunks.push(event.data);
+    };
+
+    media.onstop = async () => {
+      stream.getTracks().forEach((track) => track.stop());
+      const blob = new Blob(chunks, { type: media.mimeType || "audio/webm" });
+      if (!blob.size) return;
+
+      setTranscribing(true);
+      try {
+        const form = new FormData();
+        form.append("audio", blob, "question.webm");
+        const response = await fetch(`${API_URL}/api/transcribe`, {
+          method: "POST",
+          body: form,
+        });
+        const body = await response.json();
+        if (response.ok) {
+          // Shown for correction rather than asked straight away: a
+          // mis-transcription would otherwise become a wrong answer with no
+          // visible cause.
+          setQuestion((body as Transcription).text);
+        } else {
+          setError(body?.detail ?? "Could not transcribe the recording.");
+        }
+      } catch {
+        setError("Could not reach the transcription endpoint.");
+      } finally {
+        setTranscribing(false);
+      }
+    };
+
+    media.start();
+    setRecording(true);
+  }, []);
+
   const disclaimer = result?.disclaimer ?? meta?.disclaimer;
 
   return (
@@ -132,6 +198,21 @@ export default function Page() {
           <button type="submit" disabled={busy || question.trim().length < 3}>
             {busy ? "Searching the Code…" : "Ask"}
           </button>
+          {canSpeak && (
+            <button
+              type="button"
+              className={`ghost${recording ? " recording" : ""}`}
+              onClick={() => (recording ? stopRecording() : void startRecording())}
+              disabled={transcribing || busy}
+              title="Ask aloud, in English or Bangla"
+            >
+              {transcribing
+                ? "Transcribing…"
+                : recording
+                  ? "◼ Stop recording"
+                  : "🎙 Speak"}
+            </button>
+          )}
           <span className="hint">
             ⌘/Ctrl + Enter
             {meta && ` · ${meta.provider.chat_model}`}

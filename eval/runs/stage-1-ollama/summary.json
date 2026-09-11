@@ -1,26 +1,26 @@
 {
-  "questions": 95,
-  "measured": 93,
-  "errors": 2,
+  "questions": 101,
+  "measured": 100,
+  "errors": 1,
   "citations_made": 35,
   "citation_existence": 0.9143,
   "hallucinated_citation_rate": 0.0857,
-  "citation_precision": 0.0741,
-  "answer_hit_rate": 0.0143,
+  "citation_precision": 0.069,
+  "answer_hit_rate": 0.0132,
   "retrieval_recall": null,
   "excerpt_validity": 0.0,
   "quotes_checked": 13,
-  "refusal_accuracy": 0.7097,
-  "refused_when_unanswerable": 0.6957,
-  "refused_when_answerable": 0.2857,
+  "refusal_accuracy": 0.73,
+  "refused_when_unanswerable": 0.7917,
+  "refused_when_answerable": 0.2895,
   "by_slice": {
     "direct_lookup": {
-      "n": 40,
-      "errors": 2,
-      "decided_correctly": 24,
+      "n": 45,
+      "errors": 1,
+      "decided_correctly": 28,
       "with_correct_citation": 0,
-      "measured": 38,
-      "refusal_accuracy": 0.6316
+      "measured": 44,
+      "refusal_accuracy": 0.6364
     },
     "multi_section": {
       "n": 12,
@@ -39,12 +39,12 @@
       "refusal_accuracy": 0.9
     },
     "unanswerable": {
-      "n": 14,
+      "n": 15,
       "errors": 0,
-      "decided_correctly": 9,
+      "decided_correctly": 12,
       "with_correct_citation": 0,
-      "measured": 14,
-      "refusal_accuracy": 0.6429
+      "measured": 15,
+      "refusal_accuracy": 0.8
     },
     "ambiguous": {
       "n": 9,
@@ -67,7 +67,8 @@
   "system": "baseline-llm-only",
   "provider": "ollama",
   "model": "qwen2.5:3b-instruct",
-  "elapsed_seconds": 947.0,
-  "cache_hits": 0,
+  "elapsed_seconds": 473.2,
+  "cache_hits": 93,
+  "dataset_questions": 101,
   "partial": false
 }

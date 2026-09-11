@@ -242,3 +242,17 @@ button.ghost:hover:not(:disabled) { border-color: var(--accent); }
   line-height: 1.65;
   color: var(--ink-muted);
 }
+
+button.ghost.recording {
+  border-color: var(--warn);
+  color: var(--warn);
+  animation: pulse 1.4s ease-in-out infinite;
+}
+
+@keyframes pulse {
+  50% { opacity: 0.55; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  button.ghost.recording { animation: none; }
+}

@@ -2,13 +2,16 @@
 
 from __future__ import annotations
 
-from fastapi import APIRouter, HTTPException, Query, Request
+import time
+from typing import Annotated
+
+from fastapi import APIRouter, File, Form, HTTPException, Query, Request, UploadFile
 
 from app import __version__
 from app.api.limits import AnswerCache, SlidingWindowLimiter, caller_key
 from app.config import get_settings
 from app.legal import DISCLAIMER, SOURCE_ATTRIBUTION
-from app.llm import ProviderUnavailable, get_provider
+from app.llm import Capability, CapabilityUnavailable, ProviderUnavailable, get_provider
 from app.qa.translate import NOTICE, UnsupportedLanguage, translate
 from app.qa.validation import validate
 from app.schemas import (
@@ -19,6 +22,7 @@ from app.schemas import (
     HealthResponse,
     MetaResponse,
     ProviderInfo,
+    TranscriptionResponse,
     TranslateRequest,
     TranslateResponse,
 )
@@ -202,4 +206,103 @@ async def translate_answer(request: TranslateRequest) -> TranslateResponse:
         target=request.target,
         model=getattr(get_provider(), "_chat_model", ""),
         notice=NOTICE.get(request.target, NOTICE["en"]),
+    )
+
+
+# Whisper accepts 25 MB. Rejecting oversized uploads here keeps a long upload from
+# being spent before the provider refuses it.
+MAX_AUDIO_BYTES = 25 * 1024 * 1024
+
+AUDIO_SUFFIXES = {
+    "audio/webm": "webm",
+    "audio/ogg": "ogg",
+    "audio/mpeg": "mp3",
+    "audio/mp4": "m4a",
+    "audio/x-m4a": "m4a",
+    "audio/wav": "wav",
+    "audio/x-wav": "wav",
+    "audio/flac": "flac",
+}
+
+
+@router.post("/transcribe", response_model=TranscriptionResponse, tags=["qa"])
+async def transcribe(
+    http_request: Request,
+    audio: Annotated[UploadFile, File(description="Recorded question")],
+    language: Annotated[
+        str | None,
+        Form(description="ISO hint such as 'bn'. Omit to let the model detect it."),
+    ] = None,
+) -> TranscriptionResponse:
+    """Convert a spoken question to text.
+
+    Returns the text rather than answering it, so the caller can see what was heard.
+    See ADR 0004: modality is erased at this boundary, and everything downstream is
+    the ordinary text path.
+    """
+    provider = get_provider()
+    if not provider.supports(Capability.TRANSCRIPTION):
+        raise HTTPException(
+            status_code=503,
+            detail=(
+                f"The configured provider ({provider.name}) has no transcription "
+                "model, so speech input is unavailable in this deployment."
+            ),
+        )
+
+    payload = await audio.read()
+    if not payload:
+        raise HTTPException(status_code=422, detail="the uploaded audio was empty")
+    if len(payload) > MAX_AUDIO_BYTES:
+        raise HTTPException(
+            status_code=413,
+            detail=(
+                f"audio is {len(payload) / 1_048_576:.1f} MB; the limit is "
+                f"{MAX_AUDIO_BYTES // 1_048_576} MB"
+            ),
+        )
+
+    caller = caller_key(
+        http_request.client.host if http_request.client else None,
+        http_request.headers.get("x-forwarded-for"),
+    )
+    decision = _limiter.check(caller)
+    if not decision.allowed:
+        raise HTTPException(
+            status_code=429,
+            detail=(
+                f"Request limit reached. Try again in "
+                f"{decision.retry_after / 60:.0f} minutes."
+            ),
+            headers={"Retry-After": str(int(decision.retry_after) + 1)},
+        )
+
+    # Whisper infers the format from the filename, and a browser recording arrives
+    # as a blob with no useful name.
+    suffix = AUDIO_SUFFIXES.get((audio.content_type or "").split(";")[0], "webm")
+    started = time.perf_counter()
+    try:
+        text = await provider.transcribe(
+            payload, f"question.{suffix}", language=language
+        )
+    except CapabilityUnavailable as exc:
+        raise HTTPException(status_code=503, detail=str(exc)) from exc
+    except ProviderUnavailable as exc:
+        _limiter.forget(caller)
+        raise HTTPException(
+            status_code=502, detail=f"transcription unavailable: {exc}"
+        ) from exc
+
+    if not text.strip():
+        _limiter.forget(caller)
+        raise HTTPException(
+            status_code=422,
+            detail="nothing was recognised in the recording",
+        )
+
+    return TranscriptionResponse(
+        text=text,
+        language=language,
+        model=getattr(provider, "_transcription_model", ""),
+        seconds=round(time.perf_counter() - started, 2),
     )

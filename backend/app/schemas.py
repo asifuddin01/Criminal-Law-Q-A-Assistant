@@ -122,3 +122,21 @@ class TranslateResponse(BaseModel):
     notice: str = Field(
         description="Shown with the translation: machine-generated, not the source"
     )
+
+
+class TranscriptionResponse(BaseModel):
+    """Speech converted to a question.
+
+    The text is returned rather than answered directly. A transcription error would
+    otherwise become a retrieval failure with no visible cause — the user asked one
+    thing, the system answered another, and nothing in the reply reveals the
+    substitution. Returning it lets the caller see and correct what was heard before
+    committing to an answer.
+    """
+
+    text: str
+    language: str | None = Field(
+        default=None, description="Language hint that was passed to the model, if any"
+    )
+    model: str = ""
+    seconds: float = Field(description="Wall-clock time spent transcribing")

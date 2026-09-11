@@ -24,19 +24,34 @@ from dataclasses import asdict
 
 from app.evaluation.dataset import GoldQuestion, load_gold
 from app.evaluation.metrics import QuestionScore, aggregate, score_question
-from app.ingest import cache_path, parse_act
+from app.ingest import cache_path, parse_act, parse_schedule, schedule_path
 from app.llm import get_provider
 from app.qa import Answer, BaselineLLM, Citation, RetrievalQA
-from app.retrieval import VectorIndex
+from app.retrieval import ScheduleLookup, VectorIndex
 
 REPO_ROOT = pathlib.Path(__file__).resolve().parents[3]
 RUNS_DIR = REPO_ROOT / "eval" / "runs"
 CACHE_DIR = REPO_ROOT / "data" / "cache" / "llm"
 
+# name, description, index, whether the Schedule II offence lookup is enabled.
+# Stage 4 is the system as it now stands: the full corpus plus the direct offence
+# lookup, which dense retrieval cannot replace — "is theft bailable" embeds closest
+# to the sections about bail, not to the row that decides it.
 STAGES = {
-    1: ("baseline-llm-only", "LLM only, no retrieval", None),
-    2: ("rag-naive-chunks", "Dense retrieval, naive fixed-size chunks", "naive_fixed_size"),
-    3: ("rag-legal-chunks", "Dense retrieval, legal-aware chunks", "legal_aware"),
+    1: ("baseline-llm-only", "LLM only, no retrieval", None, False),
+    2: (
+        "rag-naive-chunks",
+        "Dense retrieval, naive fixed-size chunks",
+        "naive_fixed_size",
+        False,
+    ),
+    3: ("rag-legal-chunks", "Dense retrieval, legal-aware chunks", "legal_aware", False),
+    4: (
+        "rag-full-corpus",
+        "Full corpus (CrPC, Schedule II, Penal Code) with offence lookup",
+        "legal_aware_schedule",
+        True,
+    ),
 }
 
 
@@ -223,7 +238,7 @@ async def run_stage(
         questions = questions[:limit]
 
     provider = get_provider(provider_name)
-    name, description, strategy = STAGES[stage]
+    name, description, strategy, with_lookup = STAGES[stage]
 
     if strategy is None:
         system = BaselineLLM(provider)
@@ -236,7 +251,16 @@ async def run_stage(
             return 2
         index = VectorIndex.load(strategy)
         print(f"index {strategy}: {len(index)} chunks, {index.model_name}")
-        system = RetrievalQA(provider, index, name=name)
+
+        lookup = None
+        if with_lookup:
+            if not schedule_path().exists():
+                print("Schedule II not ingested; run: python -m app.ingest --schedule")
+                return 2
+            lookup = ScheduleLookup(parse_schedule(schedule_path()))
+            print(f"offence lookup: {len(lookup.entries)} Schedule II rows")
+
+        system = RetrievalQA(provider, index, name=name, lookup=lookup)
 
     model = getattr(provider, "_chat_model", "unknown")
     print(f"stage {stage}: {name} — {description}")
@@ -288,6 +312,7 @@ async def run_stage(
     summary["model"] = model
     summary["elapsed_seconds"] = round(elapsed, 1)
     summary["cache_hits"] = cache_hits
+    summary["dataset_questions"] = len(load_gold())
     summary["partial"] = bool(limit)
 
     destination = results_dir(stage, provider.name, partial=bool(limit))

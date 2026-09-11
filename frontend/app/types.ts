@@ -48,5 +48,12 @@ export interface Translation {
   notice: string;
 }
 
+export interface Transcription {
+  text: string;
+  language: string | null;
+  model: string;
+  seconds: number;
+}
+
 export const API_URL =
   process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8010";
