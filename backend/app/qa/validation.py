@@ -24,6 +24,7 @@ from app.qa.schema import CRPC, UPLOADED, Answer
 from app.retrieval.chunking import schedule_rows
 
 SOURCE_URL = "https://bdlaws.minlaw.gov.bd/act-{act_id}/section-{number}.html"
+DISPLAY = {"CrPC": "Code of Criminal Procedure", "PenalCode": "Penal Code"}
 SCHEDULE_URL = (
     "https://bdlaws.minlaw.gov.bd/upload/act/2026-05-05-11-47-47-Schedule-II.pdf"
 )
@@ -62,14 +63,22 @@ class ValidationResult:
 
 def validate(
     answer: Answer,
-    corpus: Act,
+    corpora: Act | dict[str, Act],
     *,
     schedule: list[ScheduleEntry] | None = None,
     uploaded: dict[str, str] | None = None,
     retrieved_sections: list[str] | None = None,
     require_retrieved: bool = True,
 ) -> ValidationResult:
-    """Check an answer's citations, dropping any that cannot be substantiated."""
+    """Check an answer's citations, dropping any that cannot be substantiated.
+
+    `corpora` maps a document code to the parsed act it names. A single Act is
+    accepted as the Code, which is what it meant when there was only one act — but a
+    citation is now resolved against the document it claims, because section numbers
+    repeat across acts and resolving one against another would confirm a wrong
+    citation as readily as a right one.
+    """
+    acts = corpora if isinstance(corpora, dict) else {CRPC: corpora}
     result = ValidationResult(refused=answer.refused)
     if answer.refused:
         result.reason = "the model declined to answer"
@@ -123,20 +132,33 @@ def validate(
             part, chapter = None, entry.chapter
             url = SCHEDULE_URL
         else:
-            section = corpus.section(number)
+            act = acts.get(document)
+            if act is None:
+                result.dropped.append(
+                    {
+                        "section": number,
+                        "source": document,
+                        "reason": f"{document} is not part of the ingested corpus",
+                    }
+                )
+                continue
+            section = act.section(number)
             if section is None:
                 result.dropped.append(
                     {
                         "section": number,
                         "source": document,
-                        "reason": "no such section in the corpus",
+                        "reason": (
+                            f"no section {number} in the "
+                            f"{DISPLAY.get(document, document)}"
+                        ),
                     }
                 )
                 continue
             body = section.text
             note = section.marginal_notes[0] if section.marginal_notes else ""
             part, chapter = section.part, section.chapter
-            url = SOURCE_URL.format(act_id=corpus.act_id, number=number)
+            url = SOURCE_URL.format(act_id=act.act_id, number=number)
 
         if require_retrieved and allowed and f"{document}:{number}" not in allowed:
             # The model produced a section it was never shown. Whether or not the

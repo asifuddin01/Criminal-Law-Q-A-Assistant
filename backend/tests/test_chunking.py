@@ -55,21 +55,28 @@ def test_every_chunk_carries_a_citable_section(act):
 
 
 @corpus_only
-def test_legal_aware_repeats_section_identity_into_every_split(act):
+def test_legal_aware_carries_section_identity_on_every_split(act):
     """A chunk split off the middle of a long section must still say which section
-    it belongs to, or it cannot be cited from."""
+    it belongs to, or it cannot be cited from.
+
+    The identity lives in the chunk's heading, not inside its text. Text is the
+    source's own words, so that a quotation can be verified against the statute — a
+    heading inside the text gets quoted and then fails verification, because it
+    appears in no statute.
+    """
     chunks = [c for c in legal_aware(act) if c.section_number == "54"]
 
     assert len(chunks) > 1, "section 54 is long enough to split"
     for chunk in chunks:
-        assert chunk.text.startswith("Section 54")
+        assert chunk.heading.startswith("Code of Criminal Procedure section 54")
+        assert chunk.heading in chunk.embedding_text
+        assert "Code of Criminal Procedure section 54" not in chunk.text
 
 
 @corpus_only
-def test_legal_aware_splits_are_bounded_but_not_mid_word(act):
+def test_legal_aware_splits_are_trimmed(act):
     for chunk in legal_aware(act):
-        body = chunk.text.split("\n", 1)[-1]
-        assert body == body.strip()
+        assert chunk.text == chunk.text.strip()
 
 
 @corpus_only

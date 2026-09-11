@@ -60,6 +60,26 @@ def get_index() -> VectorIndex:
 
 
 @lru_cache(maxsize=1)
+def get_corpora() -> dict[str, Act]:
+    """Every ingested act, keyed by the document code its citations name."""
+    from app.retrieval.chunking import document_for
+
+    corpora: dict[str, Act] = {}
+    for act_id in (75, 11):
+        source = cache_path(act_id)
+        if not source.exists():
+            continue
+        corpora[document_for(act_id)] = parse_act(
+            source.read_text(encoding="utf-8", errors="replace"),
+            act_id=act_id,
+            source_url=f"https://bdlaws.minlaw.gov.bd/act-print-{act_id}.html",
+        )
+    if not corpora:
+        raise CorpusUnavailable("corpus not ingested; run: python -m app.ingest")
+    return corpora
+
+
+@lru_cache(maxsize=1)
 def get_schedule() -> list[ScheduleEntry]:
     source = schedule_path()
     if not source.exists():

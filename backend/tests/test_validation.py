@@ -79,7 +79,7 @@ def test_a_section_that_does_not_exist_is_dropped(corpus):
     )
 
     assert result.refused is True
-    assert any("no such section" in d["reason"] for d in result.dropped)
+    assert any("no section 9999" in d["reason"] for d in result.dropped)
 
 
 @corpus_only

@@ -7,12 +7,13 @@ receives depends on the indexed chunking strategy, which is the variable stages 
 
 from __future__ import annotations
 
+import hashlib
+
 from app.config import get_settings
 from app.llm import ChatMessage, LLMProvider, ProviderUnavailable
 from app.qa.baseline import _parse
-from app.qa.documents import UPLOADED
 from app.qa.schema import Answer
-from app.retrieval import SCHEDULE_II, ScheduleLookup, VectorIndex, schedule_rows
+from app.retrieval import ScheduleLookup, VectorIndex, schedule_rows
 
 SYSTEM_PROMPT = """You are a legal information assistant for the law of Bangladesh, \
 covering the Code of Criminal Procedure, 1898 (Act No. V of 1898) and its Schedule II.
@@ -23,6 +24,8 @@ The extracts come from two documents, and their section numbers are NOT \
 interchangeable:
 
 - The Code of Criminal Procedure itself. Cite these with "source": "CrPC".
+- The Penal Code, 1860, which defines offences and their punishments. Cite these \
+with "source": "PenalCode".
 - Schedule II, a table classifying offences under the Penal Code — whether each is \
 cognizable, bailable, compoundable, and which court tries it. Cite these with \
 "source": "Schedule II", and give the Penal Code section number. Penal Code section \
@@ -62,20 +65,14 @@ empty, and put your reason in "answer"."""
 
 
 def _format_context(chunks) -> str:
-    blocks = []
-    for chunk in chunks:
-        if chunk.document == UPLOADED:
-            heading = f"[Uploaded document — {chunk.marginal_note}]"
-            blocks.append(f"{heading}\n{chunk.text}")
-            continue
-        if chunk.document == SCHEDULE_II:
-            heading = f"[Schedule II — Penal Code section {chunk.section_number}]"
-        else:
-            heading = f"[CrPC Section {chunk.section_number}]"
-        if chunk.marginal_note:
-            heading += f" {chunk.marginal_note}"
-        blocks.append(f"{heading}\n{chunk.text}")
-    return "\n\n---\n\n".join(blocks)
+    """Render the extracts.
+
+    The heading is a label, not part of the extract. Quotations are checked against
+    the source's own words, so anything the model may quote must be the source's own
+    words — a heading inside the quotable text gets quoted, honestly, and then fails
+    verification because it appears in no statute.
+    """
+    return "\n\n---\n\n".join(f"[{c.heading}]\n{c.text}" for c in chunks)
 
 
 class RetrievalQA:
@@ -110,6 +107,17 @@ class RetrievalQA:
         retrieves.
         """
         return self._index.model_name
+
+    @property
+    def fingerprint(self) -> str:
+        """Identifies this system's configuration for caching.
+
+        Includes the prompt. A cache keyed only on the question would serve answers
+        produced by an earlier prompt as though they were the new prompt's, so a
+        prompt change would show no effect and the experiment would silently
+        measure the previous one.
+        """
+        return hashlib.sha256(SYSTEM_PROMPT.encode("utf-8")).hexdigest()[:12]
 
     async def answer(self, question: str, *, extra_chunks=None) -> Answer:
         """Answer from the corpus, plus any chunks the caller supplies.

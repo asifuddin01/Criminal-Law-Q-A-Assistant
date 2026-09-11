@@ -20,6 +20,7 @@ from app.ingest.models import Act
 CRPC = "CrPC"
 SCHEDULE_II = "ScheduleII"
 PENAL_CODE = "PenalCode"
+UPLOADED = "Uploaded"
 EVIDENCE_ACT = "EvidenceAct"
 
 # Human-facing names. The codes above are identifiers — they appear in gold labels,
@@ -30,6 +31,7 @@ DISPLAY_NAMES = {
     SCHEDULE_II: "Schedule II",
     PENAL_CODE: "Penal Code",
     EVIDENCE_ACT: "Evidence Act",
+    UPLOADED: "Uploaded document",
 }
 
 # bdlaws act id to document code. An act absent from this map is still ingestible;
@@ -74,6 +76,29 @@ class Chunk:
     def identifier(self) -> str:
         """Stable key for gold labels and retrieval metrics."""
         return f"{self.document}:{self.section_number}"
+
+    @property
+    def heading(self) -> str:
+        """How this chunk is introduced to the model. Not part of its text."""
+        if self.document == SCHEDULE_II:
+            label = f"Schedule II — Penal Code section {self.section_number}"
+        elif self.document == UPLOADED:
+            return f"Uploaded document — {self.marginal_note}"
+        else:
+            name = DISPLAY_NAMES.get(self.document, self.document)
+            label = f"{name} section {self.section_number}"
+        return f"{label}. {self.marginal_note}".strip().rstrip(".")
+
+    @property
+    def embedding_text(self) -> str:
+        """What is embedded: the heading carries real retrieval signal.
+
+        Kept separate from `text` so that a quotation can be checked against the
+        source's own words. When the heading lived inside the text, a model that
+        quoted it — honestly, from what it was shown — was scored as having
+        fabricated a quotation, because the heading appears in no statute.
+        """
+        return f"{self.heading}\n{self.text}" if self.heading else self.text
 
     @property
     def content_hash(self) -> str:
@@ -184,7 +209,6 @@ def legal_aware(act: Act, *, limit: int = 1400) -> list[Chunk]:
         if not text:
             continue
         note = section.marginal_notes[0] if section.marginal_notes else ""
-        header = f"Section {section.number}. {note}".strip().rstrip(".")
         for part_index, piece in enumerate(_split_at_subsections(text, limit)):
             chunks.append(
                 Chunk(
@@ -192,7 +216,7 @@ def legal_aware(act: Act, *, limit: int = 1400) -> list[Chunk]:
                     # 302, and colliding ids would make an incremental update treat
                     # one as a modification of the other.
                     chunk_id=f"legal-{document}-{section.number}-{part_index}",
-                    text=f"{header}\n{piece}",
+                    text=piece,
                     section_number=section.number,
                     marginal_note=note,
                     part=section.part,

@@ -69,3 +69,21 @@ def test_run_stage_reads_the_flag_rather_than_only_accepting_it():
     source = inspect.getsource(harness.run_stage)
 
     assert "wait_for_budget" in source.split(") -> int:", 1)[1]
+
+
+def test_the_cache_key_changes_when_the_prompt_changes():
+    """A cache keyed only on the question would serve answers produced by an earlier
+    prompt as though they came from the new one, so a prompt change would appear to
+    have no effect and the experiment would silently re-measure the old prompt."""
+    same = harness._cache_key("sys", "model", "question", "fingerprint-a")
+    other = harness._cache_key("sys", "model", "question", "fingerprint-b")
+
+    assert same != other
+
+
+def test_both_answering_systems_expose_a_prompt_fingerprint():
+    from app.qa.baseline import BaselineLLM
+    from app.qa.rag import RetrievalQA
+
+    for system in (BaselineLLM, RetrievalQA):
+        assert isinstance(system.fingerprint, property)

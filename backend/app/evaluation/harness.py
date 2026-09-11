@@ -55,8 +55,8 @@ STAGES = {
 }
 
 
-def _cache_key(system: str, model: str, question: str) -> str:
-    payload = f"{system}\x00{model}\x00{question}"
+def _cache_key(system: str, model: str, question: str, fingerprint: str = "") -> str:
+    payload = f"{system}\x00{model}\x00{fingerprint}\x00{question}"
     return hashlib.sha256(payload.encode("utf-8")).hexdigest()
 
 
@@ -120,7 +120,9 @@ def retry_delay(message: str, *, default: float = 600.0, cap: float = 1800.0) ->
 async def _run_one(
     system, question: GoldQuestion, model: str, semaphore, use_cache: bool
 ) -> tuple[Answer, bool]:
-    key = _cache_key(system.name, model, question.question)
+    key = _cache_key(
+        system.name, model, question.question, getattr(system, "fingerprint", "")
+    )
     if use_cache:
         cached = _read_cache(key)
         if cached is not None:
@@ -276,10 +278,14 @@ async def run_stage(
             )
             break
         except DailyBudgetExhausted as exhausted:
+            fingerprint = getattr(system, "fingerprint", "")
             cached = sum(
                 1
                 for q in questions
-                if _read_cache(_cache_key(system.name, model, q.question)) is not None
+                if _read_cache(
+                    _cache_key(system.name, model, q.question, fingerprint)
+                )
+                is not None
             )
             if not wait_for_budget:
                 _explain_exhausted(

@@ -72,7 +72,8 @@ def test_only_the_changed_chunk_is_re_embedded(counting_embed):
 
     result = index.update([chunk("a", "alpha text"), chunk("b", "beta text REVISED")])
 
-    assert counting_embed == ["beta text REVISED"]
+    assert len(counting_embed) == 1
+    assert "beta text REVISED" in counting_embed[0]
     assert (result.added, result.changed, result.unchanged) == (0, 1, 1)
 
 
@@ -86,7 +87,8 @@ def test_adding_a_document_embeds_only_the_new_document(counting_embed):
         [chunk("a", "alpha"), chunk("b", "beta"), chunk("c", "gamma")]
     )
 
-    assert counting_embed == ["gamma"]
+    assert len(counting_embed) == 1
+    assert "gamma" in counting_embed[0]
     assert result.added == 1
     assert len(index) == 3
 
@@ -114,7 +116,7 @@ def test_vectors_stay_aligned_with_their_chunks_after_an_update(counting_embed):
 
     assert len(index.chunks) == len(index.vectors)
     for position, chunk_object in enumerate(index.chunks):
-        expected = index_module.embed([chunk_object.text])[0]
+        expected = index_module.embed([chunk_object.embedding_text])[0]
         assert np.allclose(index.vectors[position], expected, atol=1e-6)
 
 

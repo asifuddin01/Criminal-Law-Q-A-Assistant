@@ -11,6 +11,7 @@ it produces comes from its own weights.
 
 from __future__ import annotations
 
+import hashlib
 import json
 import re
 
@@ -95,6 +96,17 @@ class BaselineLLM:
 
     def __init__(self, provider: LLMProvider) -> None:
         self._provider = provider
+
+    @property
+    def fingerprint(self) -> str:
+        """Identifies this system's configuration for caching.
+
+        Includes the prompt. A cache keyed only on the question would serve answers
+        produced by an earlier prompt as though they were the new prompt's, so a
+        prompt change would show no effect and the experiment would silently
+        measure the previous one.
+        """
+        return hashlib.sha256(SYSTEM_PROMPT.encode("utf-8")).hexdigest()[:12]
 
     async def answer(self, question: str) -> Answer:
         messages = [

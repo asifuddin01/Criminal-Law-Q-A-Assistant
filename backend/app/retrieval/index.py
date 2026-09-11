@@ -91,7 +91,7 @@ class VectorIndex:
     def build(
         cls, chunks: list[Chunk], *, model_name: str = DEFAULT_MODEL
     ) -> VectorIndex:
-        vectors = embed([c.text for c in chunks], model_name=model_name)
+        vectors = embed([c.embedding_text for c in chunks], model_name=model_name)
         return cls(chunks, vectors, model_name)
 
     def search(self, query: str, *, k: int = 10) -> list[Hit]:
@@ -140,7 +140,7 @@ class VectorIndex:
         removed = len(existing)
 
         fresh = (
-            embed([c.text for c in to_embed], model_name=self.model_name)
+            embed([c.embedding_text for c in to_embed], model_name=self.model_name)
             if to_embed
             else np.zeros((0, self.vectors.shape[1]), dtype=np.float32)
         )

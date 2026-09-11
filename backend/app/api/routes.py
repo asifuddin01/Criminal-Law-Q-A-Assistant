@@ -30,7 +30,7 @@ from app.schemas import (
     TranslateRequest,
     TranslateResponse,
 )
-from app.services import CorpusUnavailable, get_corpus, get_qa, get_schedule
+from app.services import CorpusUnavailable, get_corpora, get_qa, get_schedule
 
 router = APIRouter()
 
@@ -128,7 +128,7 @@ async def ask(request: AskRequest, http_request: Request) -> AskResponse:
         extra_chunks = document.chunks()
 
     try:
-        corpus = get_corpus()
+        corpora = get_corpora()
         schedule = get_schedule()
         system = get_qa()
     except CorpusUnavailable as exc:
@@ -145,7 +145,7 @@ async def ask(request: AskRequest, http_request: Request) -> AskResponse:
     cache_key = _answers.key(
         request.question,
         model=system.model_name,
-        index=f"{system.index_name}|{request.document_id or ''}",
+        index=f"{system.index_name}|{system.fingerprint}|{request.document_id or ''}",
     )
     cached = _answers.get(cache_key)
     if cached is not None:
@@ -183,7 +183,7 @@ async def ask(request: AskRequest, http_request: Request) -> AskResponse:
 
     result = validate(
         answer,
-        corpus,
+        corpora,
         schedule=schedule,
         uploaded={c.section_number: c.text for c in extra_chunks},
         retrieved_sections=answer.retrieved_sections,

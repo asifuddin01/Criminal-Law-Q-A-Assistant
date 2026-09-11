@@ -48,6 +48,7 @@ SCHEDULE_II = "ScheduleII"
 
 
 UPLOADED = "Uploaded"
+PENAL_CODE = "PenalCode"
 
 
 def normalize_source(raw: str) -> str:
@@ -62,6 +63,8 @@ def normalize_source(raw: str) -> str:
         return SCHEDULE_II
     if "upload" in lowered or "document" in lowered:
         return UPLOADED
+    if "penal" in lowered:
+        return PENAL_CODE
     return CRPC
 
 
