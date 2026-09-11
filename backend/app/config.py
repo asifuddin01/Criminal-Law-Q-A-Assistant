@@ -49,6 +49,12 @@ class Settings(BaseSettings):
     # neither measurable.
     retrieval_k: int = 8
 
+    # Demo protection. A grounded answer costs roughly 2,500 tokens against a daily
+    # allowance of 200,000, so an unprotected public link is spent by a handful of
+    # visitors. Zero disables the limit.
+    rate_limit_per_hour: int = 30
+    answer_cache_size: int = 512
+
     request_timeout_seconds: float = 60.0
 
     # Free-tier token-per-minute limits are reached easily by a full evaluation

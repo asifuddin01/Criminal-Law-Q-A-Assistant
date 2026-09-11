@@ -2,9 +2,10 @@
 
 from __future__ import annotations
 
-from fastapi import APIRouter, HTTPException, Query
+from fastapi import APIRouter, HTTPException, Query, Request
 
 from app import __version__
+from app.api.limits import AnswerCache, SlidingWindowLimiter, caller_key
 from app.config import get_settings
 from app.legal import DISCLAIMER, SOURCE_ATTRIBUTION
 from app.llm import ProviderUnavailable, get_provider
@@ -24,6 +25,10 @@ from app.schemas import (
 from app.services import CorpusUnavailable, get_corpus, get_qa
 
 router = APIRouter()
+
+_settings = get_settings()
+_limiter = SlidingWindowLimiter(_settings.rate_limit_per_hour)
+_answers = AnswerCache(_settings.answer_cache_size)
 
 
 @router.get("/health", response_model=HealthResponse, tags=["system"])
@@ -76,7 +81,7 @@ async def meta(
 
 
 @router.post("/ask", response_model=AskResponse, tags=["qa"])
-async def ask(request: AskRequest) -> AskResponse:
+async def ask(request: AskRequest, http_request: Request) -> AskResponse:
     """Answer a question from retrieved statutory text.
 
     The answer passes through citation validation before it is returned. Citations
@@ -90,19 +95,49 @@ async def ask(request: AskRequest) -> AskResponse:
     except CorpusUnavailable as exc:
         raise HTTPException(status_code=503, detail=str(exc)) from exc
 
+    # Cache first. A repeat question costs nothing, so it should not consume an
+    # allowance either — the limit exists to protect the token budget, and a cache
+    # hit spends none of it.
+    cache_key = _answers.key(
+        request.question, model=system.model_name, index=system.index_name
+    )
+    cached = _answers.get(cache_key)
+    if cached is not None:
+        return cached.model_copy(update={"cached": True})
+
+    caller = caller_key(
+        http_request.client.host if http_request.client else None,
+        http_request.headers.get("x-forwarded-for"),
+    )
+    decision = _limiter.check(caller)
+    if not decision.allowed:
+        raise HTTPException(
+            status_code=429,
+            detail=(
+                f"Question limit reached. This demo shares one free-tier token "
+                f"allowance across all visitors, so each caller gets "
+                f"{_limiter.limit} questions an hour. Try again in "
+                f"{decision.retry_after / 60:.0f} minutes."
+            ),
+            headers={"Retry-After": str(int(decision.retry_after) + 1)},
+        )
+
     try:
         answer = await system.answer(request.question)
     except ProviderUnavailable as exc:
+        # The request cost nothing, so it should not cost an allowance either.
+        _limiter.forget(caller)
         raise HTTPException(
             status_code=502, detail=f"language model unavailable: {exc}"
         ) from exc
 
     if answer.error:
+        _limiter.forget(caller)
         raise HTTPException(status_code=502, detail=answer.error)
 
     result = validate(answer, corpus, retrieved_sections=answer.retrieved_sections)
 
-    return AskResponse(
+    response = AskResponse(
         question_text=request.question,
         answer=(
             answer.text
@@ -128,6 +163,8 @@ async def ask(request: AskRequest) -> AskResponse:
         model=answer.model,
         disclaimer=DISCLAIMER,
     )
+    _answers.put(cache_key, response)
+    return response
 
 
 @router.post("/translate", response_model=TranslateResponse, tags=["qa"])

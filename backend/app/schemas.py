@@ -84,6 +84,13 @@ class AskResponse(BaseModel):
     )
     retrieved_sections: list[str] = Field(default_factory=list)
     model: str = ""
+    cached: bool = Field(
+        default=False,
+        description=(
+            "True when served from cache. Generation is deterministic, so a cached "
+            "answer is the same answer, obtained without spending provider budget."
+        ),
+    )
     disclaimer: str
 
 

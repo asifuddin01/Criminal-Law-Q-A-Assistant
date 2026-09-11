@@ -66,6 +66,21 @@ class RetrievalQA:
         self._k = k
         self.name = name
 
+    @property
+    def model_name(self) -> str:
+        """The chat model answering, for cache keys and reporting."""
+        return getattr(self._provider, "_chat_model", self._provider.name)
+
+    @property
+    def index_name(self) -> str:
+        """The embedding model the index was built with.
+
+        Part of the cache key: an answer cached under one index must never be served
+        after the index changes, or the system would be reporting text it no longer
+        retrieves.
+        """
+        return self._index.model_name
+
     async def answer(self, question: str) -> Answer:
         hits = self._index.search(question, k=self._k)
         retrieved = list(dict.fromkeys(h.chunk.section_number for h in hits))
