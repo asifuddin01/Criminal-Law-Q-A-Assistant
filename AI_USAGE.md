@@ -203,3 +203,49 @@ still starts — so the usual signals all report success. The failure is only vi
 behaviour. Anything edited by pattern-matching against existing source needs a test
 that exercises the path, not a check that the file parses.
 
+### 8. Code written for one act, silently assuming there would only ever be one
+
+**What happened.** The chunker set every chunk's document to the Code of Criminal
+Procedure, and built chunk ids from the section number alone. Both were correct while
+the corpus held one act, and both were wrong the moment it held two — but nothing in
+the code said "this assumes a single act", and nothing failed while that was true.
+
+Adding the Penal Code would have labelled all 601 of its sections as CrPC sections.
+Penal Code section 302 is murder and CrPC section 302 is not, so the citation
+validator — the component whose entire job is catching wrong citations — would have
+confirmed it against the wrong statute. Chunk ids collided for the same reason: both
+acts have a section 302, so an incremental update would have treated one as a
+modification of the other and quietly replaced it.
+
+**How it was caught.** By adding a second act. Not by review, not by tests — every
+test passed throughout, because every test used one act.
+
+**Correction.** Chunks carry a document code derived from the act, ids include it, and
+citations are validated against the document they name.
+
+**Lesson recorded.** An assistant writes for the case in front of it and rarely marks
+where it has assumed away a dimension. The assumption is invisible in the result: the
+code is clean, the tests pass, and the defect only exists in a situation that has not
+happened yet. The tell is a field that could vary but is written as a constant —
+`document=CRPC` in a function that takes an act as its argument.
+
+### 9. A test that found a 500 the design intended to be a 503
+
+**What happened.** Writing a test for "asking about a document that no longer exists",
+the failure was not the 404 under test but a `RuntimeError` from constructing the
+model provider — which escaped the handler as an unexplained 500.
+
+The route already caught `CorpusUnavailable` and returned 503 with the fix, and `/meta`
+already degraded rather than failing on a missing credential. This path had simply not
+been given the same treatment, and no existing test exercised it.
+
+**Correction.** Provider construction failures return 503 with the reason. Separately,
+the uploaded document is now resolved before the corpus loads, so a missing document
+reports the right problem whatever else is misconfigured — which also took that test
+from 97 seconds to 2.
+
+**Lesson recorded.** The bug was found by a test aimed at something else entirely.
+Tests written for one behaviour routinely walk through code paths nobody chose to
+examine, which is an argument for writing them even where the behaviour seems obvious
+enough not to need one.
+
