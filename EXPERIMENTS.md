@@ -554,3 +554,76 @@ admissible against the accused?" Admissibility is Evidence Act section 25, but C
 sections 162 and 164 are about confessions and will retrieve well. The corpus must
 decline rather than answer from 164, and nothing else in the dataset tests that.
 
+### 2026-09-12 — Reading the failures instead of the rate
+
+**Objective.** Stage 4 reported 65.6% excerpt validity — the metric that carries this
+system's central claim, that a quoted excerpt is the section's own words. Rather than
+record the number, read all 97 quotations it was computed from.
+
+**Method.** Every quotation the checker rejected was printed beside the text of the
+section it was attributed to, and classified by hand. Then each correction was isolated
+by **re-scoring the same stored answers**, so nothing about the system changed and any
+movement is a measurement defect rather than an improvement.
+
+**Result.** Most of the failures were faithful quotations the check could not recognise,
+for four distinct reasons, three in the checker and one in the corpus.
+
+1. **Editorial apparatus.** bdlaws marks amended words with square brackets and words
+   repealed out of a provision with `[* * *]` — 664 and 366 of them in the Code. Section
+   200 reads `examine [upon oath the complainant ...]`. Quoting it without brackets, as
+   any lawyer would, failed.
+2. **Elision.** A quotation skipping a passage with an ellipsis was scored as invented.
+3. **The label.** Each extract is introduced by a synthesised heading. Models copy it
+   into the quotation. In stage 3, **20 of 98 quotations** did — one in five — and the
+   words after the label were exact.
+4. **A gap the ingester left.** Footnote markers sit between a word and the punctuation
+   after it, so stripping them left `the Evidence Act, 1872 , section 24`. Twenty-seven
+   of these reached the ingested Code. They are visible to anyone reading a quoted
+   excerpt, and they made a faithful quotation of section 163 fail against its own text.
+
+A fifth defect sat in the scorer. It resolved every citation against the Code of Criminal
+Procedure, ignoring the document the citation claimed, so a Schedule II quotation about
+theft was compared against Code section 379 — which is about appeals. The validation gate
+had already been taught to resolve by document; the scorer had its own copy of the logic
+and had not. Both now call one implementation.
+
+**Same answers, corrected scorer.** Local model, `qwen2.5:3b-instruct`:
+
+| Stage | Excerpt validity, before | after | matched as written | Citation existence |
+|---|---|---|---|---|
+| 1 — LLM only | 0.0% | **0.0%** | 0.0% | 91.4% |
+| 2 — naive chunks | 54.4% | **57.1%** | 56.0% | 98.9% |
+| 3 — legal-aware chunks | 40.8% | **61.2%** | 40.8% | 100.0% |
+| 4 — full corpus | 65.6% | **80.4%** | 72.2% | 100.0% |
+
+Hosted model, `openai/gpt-oss-120b`, re-scored from stored answers without spending any
+budget:
+
+| Stage | Excerpt validity, before | after | matched as written |
+|---|---|---|---|
+| 1 — LLM only | 0.0% | **0.0%** | 0.0% |
+| 2 — naive chunks | 74.6% | **92.3%** | 75.4% |
+
+**Why this is a correction and not a loosening.** Stage 1 is the control. It quotes from
+memory with no text in front of it. Of its 15 quotations, the allowances rescue **zero** —
+13 rejected outright, 2 citing sections that do not exist — on both models. Every
+fabrication is still scored as a fabrication. A quotation consisting only of a marginal
+note also still fails: the note is an editor's summary, and presenting one as law is the
+failure this system exists to prevent.
+
+Both rates are published. `excerpt_validity` counts quotations that verified after an
+allowance; `excerpt_validity_unrepaired` counts only those that matched as written.
+Anyone who disagrees with an allowance can read the stricter column. See
+[ADR 0011](docs/adr/0011-what-counts-as-a-verbatim-quotation.md).
+
+**What made this findable.** Not a test — every test passed throughout. The rate was
+lower than the previous stage's and there was no story that explained it, which is the
+only reason the quotations were read at all. Three of the four artefacts are invisible in
+aggregate and obvious in ten minutes of reading individual failures.
+
+**An infrastructure change this forced.** Re-scoring the hosted runs was nearly
+impossible: their answers existed only in the response cache, under a key shape that
+predated the fingerprint, and I had to search the prompt's git history to find them. Runs
+now write `answers.jsonl` beside their scores, and `python -m app.evaluation.rescore`
+re-derives the scores from it. A score is downstream of an answer, and correcting the
+scorer should never mean paying a model again to re-measure text that has not changed.

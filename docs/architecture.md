@@ -100,16 +100,31 @@ flowchart TB
     ENOUGH -->|no| REFUSE["Refuse:<br/>state what is missing"]
     ENOUGH -->|yes| GEN["Generate"]
 
-    GEN --> V1{"Cited sections<br/>present in context?"}
+    GEN --> V0{"Citation resolves to<br/>the document it claims?"}
+    V0 -->|no| REFUSE
+    V0 -->|yes| V1{"Cited sections<br/>present in context?"}
     V1 -->|no| REFUSE
-    V1 -->|yes| V2{"Excerpts are exact<br/>substrings of source?"}
-    V2 -->|no| REFUSE
+    V1 -->|yes| V2{"Excerpt is the section's<br/>own words?"}
+    V2 -->|no| DROP["Drop the quotation,<br/>keep the citation"]
     V2 -->|yes| OUT["Answer<br/>+ section citations<br/>+ source excerpts<br/>+ amendment history"]
+    DROP --> OUT
 ```
 
-Both validation checks are deterministic. Neither asks a model whether it was honest — the
-first is a set membership test against what retrieval actually returned, the second a string
-containment test against stored source text.
+All three validation checks are deterministic. None asks a model whether it was honest. The
+first resolves a citation against the document it names, because section numbers repeat
+across acts — Penal Code section 379 is theft, Code of Criminal Procedure section 379 is
+about appeals, and resolving one against the other would confirm a wrong citation as readily
+as a right one. The second is a set membership test against what retrieval actually
+returned. The third is a string containment test against stored source text.
+
+A failed quotation drops the quotation and keeps the citation: a fabricated excerpt is worse
+than none, while the section reference may still be sound. What "the section's own words"
+means is not quite a raw substring test, and the difference is worth stating precisely —
+bdlaws' amendment brackets are canonicalised away, an ellipsis is read as an elision, and a
+citation label the model copied in front of the text is trimmed off before the remainder is
+required to match. None of those admits a word the section does not contain, and the reasons
+are in [ADR 0011](adr/0011-what-counts-as-a-verbatim-quotation.md). Both the repaired and the
+strict rate are published for every stage.
 
 Refusal is a first-class outcome with its own accuracy metric, not an error path.
 
