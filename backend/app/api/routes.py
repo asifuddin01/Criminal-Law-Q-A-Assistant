@@ -12,6 +12,7 @@ from app.api.limits import AnswerCache, SlidingWindowLimiter, caller_key
 from app.config import get_settings
 from app.legal import DISCLAIMER, SOURCE_ATTRIBUTION
 from app.llm import Capability, CapabilityUnavailable, ProviderUnavailable, get_provider
+from app.qa import ocr
 from app.qa.documents import DocumentStore, UnreadableDocument
 from app.qa.translate import NOTICE, UnsupportedLanguage, translate
 from app.qa.validation import validate
@@ -22,6 +23,7 @@ from app.schemas import (
     DocumentResponse,
     DroppedCitation,
     HealthResponse,
+    ImageTextResponse,
     MetaResponse,
     ProviderInfo,
     TranscriptionResponse,
@@ -84,10 +86,17 @@ async def meta(
         info.model_config.get("extra")
         _ = exc
 
+    features = ["text", "upload"]
+    if "transcription" in info.capabilities:
+        features.append("speech")
+    if ocr.available():
+        features.append("image")
+
     return MetaResponse(
         app_name=settings.app_name,
         version=__version__,
         provider=info,
+        features=sorted(features),
         disclaimer=DISCLAIMER,
         source_attribution=SOURCE_ATTRIBUTION,
     )
@@ -372,4 +381,53 @@ async def upload_document(
         characters=document.characters,
         preview=document.preview(),
         notice=UPLOAD_NOTICE,
+    )
+
+
+@router.post("/image", response_model=ImageTextResponse, tags=["qa"])
+async def read_image(
+    http_request: Request,
+    image: Annotated[UploadFile, File(description="A photograph of a document")],
+) -> ImageTextResponse:
+    """Read the text out of a photographed document.
+
+    Served by OCR rather than a vision model, because the provider catalogue offers
+    none — and because for a photograph of legal paper the wanted output is the text
+    exactly as written. A vision model paraphrases; OCR transcribes, which is the
+    right primitive for a system whose claim is verbatim grounding.
+
+    The text is returned for the user to check, not answered directly.
+    """
+    payload = await image.read()
+
+    caller = caller_key(
+        http_request.client.host if http_request.client else None,
+        http_request.headers.get("x-forwarded-for"),
+    )
+    decision = _limiter.check(caller)
+    if not decision.allowed:
+        raise HTTPException(
+            status_code=429,
+            detail=(
+                f"Request limit reached. Try again in "
+                f"{decision.retry_after / 60:.0f} minutes."
+            ),
+            headers={"Retry-After": str(int(decision.retry_after) + 1)},
+        )
+
+    languages = ocr.language_argument()
+    started = time.perf_counter()
+    try:
+        text = ocr.read_image(payload, languages=languages)
+    except ocr.OCRUnavailable as exc:
+        _limiter.forget(caller)
+        raise HTTPException(status_code=503, detail=str(exc)) from exc
+    except ocr.UnreadableImage as exc:
+        _limiter.forget(caller)
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+
+    return ImageTextResponse(
+        text=text,
+        languages=languages,
+        seconds=round(time.perf_counter() - started, 2),
     )

@@ -6,6 +6,7 @@ import {
   API_URL,
   type AskResponse,
   type Meta,
+  type ImageText,
   type Transcription,
   type Translation,
   type UploadedDocument,
@@ -33,6 +34,8 @@ export default function Page() {
   const [document_, setDocument] = useState<UploadedDocument | null>(null);
   const [uploading, setUploading] = useState(false);
   const fileInput = useRef<HTMLInputElement | null>(null);
+  const imageInput = useRef<HTMLInputElement | null>(null);
+  const [reading, setReading] = useState(false);
 
   useEffect(() => {
     fetch(`${API_URL}/api/meta`)
@@ -109,7 +112,37 @@ export default function Page() {
     }
   }, [result, translation]);
 
-  const canSpeak = meta?.provider.capabilities.includes("transcription") ?? false;
+  // Offered only where the deployment can serve them. A control that fails on use
+  // is worse than one that is absent.
+  const features = meta?.features ?? ["text"];
+  const canSpeak = features.includes("speech");
+  const canRead = features.includes("image");
+
+  const readImage = useCallback(async (file: File) => {
+    setReading(true);
+    setError(null);
+    try {
+      const form = new FormData();
+      form.append("image", file);
+      const response = await fetch(`${API_URL}/api/image`, {
+        method: "POST",
+        body: form,
+      });
+      const body = await response.json();
+      if (response.ok) {
+        // Placed in the box for correction, not asked directly: an OCR slip would
+        // otherwise become a wrong answer with no visible cause.
+        setQuestion((body as ImageText).text);
+      } else {
+        setError(body?.detail ?? "No text could be read from that image.");
+      }
+    } catch {
+      setError("Could not reach the image endpoint.");
+    } finally {
+      setReading(false);
+      if (imageInput.current) imageInput.current.value = "";
+    }
+  }, []);
 
   const upload = useCallback(async (file: File) => {
     setUploading(true);
@@ -247,6 +280,27 @@ export default function Page() {
             onChange={(event) => {
               const file = event.target.files?.[0];
               if (file) void upload(file);
+            }}
+          />
+          {canRead && (
+            <button
+              type="button"
+              className="ghost"
+              onClick={() => imageInput.current?.click()}
+              disabled={reading || busy}
+              title="Photograph of an FIR, charge sheet or notice"
+            >
+              {reading ? "Reading image…" : "📷 Image"}
+            </button>
+          )}
+          <input
+            ref={imageInput}
+            type="file"
+            accept="image/*"
+            hidden
+            onChange={(event) => {
+              const file = event.target.files?.[0];
+              if (file) void readImage(file);
             }}
           />
           {canSpeak && (

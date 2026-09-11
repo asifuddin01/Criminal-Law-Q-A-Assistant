@@ -33,6 +33,14 @@ class MetaResponse(BaseModel):
     app_name: str
     version: str
     provider: ProviderInfo
+    features: list[str] = Field(
+        default_factory=list,
+        description=(
+            "Input modalities this deployment can actually serve: text, speech, "
+            "image, upload. The interface offers only these, rather than showing a "
+            "control that fails on use."
+        ),
+    )
     disclaimer: str
     source_attribution: str
 
@@ -164,3 +172,15 @@ class DocumentResponse(BaseModel):
     characters: int
     preview: str = Field(description="Opening of the extracted text, for confirmation")
     notice: str
+
+
+class ImageTextResponse(BaseModel):
+    """Text read out of an image.
+
+    Returned rather than answered, for the same reason as a transcription: an OCR
+    error would otherwise become a retrieval failure with no visible cause.
+    """
+
+    text: str
+    languages: str = Field(description="Languages tesseract was asked to recognise")
+    seconds: float

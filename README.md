@@ -27,7 +27,10 @@ is the honest state of the repository, not a roadmap.
 | Ingestion pipeline | Parser working, tested — 522 sections, 599 amendments |
 | Retrieval and generation | Complete on local model; hosted stages 2-3 pending quota |
 | Evaluation dataset | Built — 95 questions, all labels validated |
-| Frontend | Working — question input, verified citations, validator transparency |
+| Frontend | Working — text, speech, image and document input; verified citations |
+| Speech input | Working — `whisper-large-v3`, English and Bangla |
+| Image input | Working — local OCR (tesseract, English + Bengali) |
+| Document upload | Working — PDF and text, never treated as law |
 
 ## What it looks like
 
@@ -97,7 +100,8 @@ covers every input path.
 | Index | Exact in-process NumPy search ([why](docs/adr/0009-exact-in-process-vector-search.md)) |
 | Frontend | Next.js |
 | Generation | Groq `openai/gpt-oss-120b`, Ollama `qwen2.5:3b-instruct` fallback |
-| Speech | Groq `whisper-large-v3` |
+| Speech | Groq `whisper-large-v3` (English and Bangla) |
+| Image | tesseract OCR, local (`eng+ben`) |
 | Embeddings | `paraphrase-multilingual-MiniLM-L12-v2` (ONNX) |
 | Retrieval | Dense (exact, in-process) plus direct offence lookup; BM25 + RRF at stage 4 |
 
@@ -265,11 +269,6 @@ find wrong in places, inventing phrases that are not Bengali legal terms. The fe
 is therefore usable on the hosted provider and should be treated as unavailable on the
 local one. Statutory excerpts are never translated in either case — see
 [the translation module](backend/app/qa/translate.py) for why.
-
-**Image input has no provider yet.** The Groq catalogue available to this project
-offers no vision-capable model, so image questions cannot currently be served. The
-capability system degrades correctly rather than failing at call time, but the feature
-is unimplemented pending a decision on the path — local OCR or a second provider.
 
 **Case law is out of scope.** The corpus is statutory. Judicial interpretation frequently
 determines how a provision operates in practice, and none of it is here.

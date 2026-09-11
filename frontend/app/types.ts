@@ -37,8 +37,15 @@ export interface Meta {
     capabilities: string[];
     reachable: boolean | null;
   };
+  features: string[];
   disclaimer: string;
   source_attribution: string;
+}
+
+export interface ImageText {
+  text: string;
+  languages: string;
+  seconds: number;
 }
 
 export interface Translation {
