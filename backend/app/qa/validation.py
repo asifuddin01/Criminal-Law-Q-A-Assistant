@@ -20,6 +20,7 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 
 from app.ingest.models import Act, ScheduleEntry
+from app.qa.quoting import MIN_QUOTE_CHARS, canonical, check_quote
 from app.qa.schema import CRPC, UPLOADED, Answer
 from app.retrieval.chunking import schedule_rows
 
@@ -28,14 +29,6 @@ DISPLAY = {"CrPC": "Code of Criminal Procedure", "PenalCode": "Penal Code"}
 SCHEDULE_URL = (
     "https://bdlaws.minlaw.gov.bd/upload/act/2026-05-05-11-47-47-Schedule-II.pdf"
 )
-
-# Below this length a quotation matches too easily to be evidence of anything.
-MIN_QUOTE_CHARS = 20
-
-
-def _normalize(text: str) -> str:
-    return " ".join(text.split()).lower()
-
 
 @dataclass(frozen=True, slots=True)
 class VerifiedCitation:
@@ -47,6 +40,10 @@ class VerifiedCitation:
     quote_verified: bool
     source_url: str
     source: str = CRPC
+    # Set when the quotation verified only after a label was trimmed or an elision
+    # was read as one. Surfaced so a repaired quotation is never mistaken for one
+    # the model produced cleanly.
+    quote_repair: str = ""
 
 
 @dataclass(slots=True)
@@ -55,6 +52,11 @@ class ValidationResult:
     dropped: list[dict] = field(default_factory=list)
     refused: bool = False
     reason: str = ""
+
+    @property
+    def repaired_quotes(self) -> int:
+        """Quotations that verified only after an allowance was made."""
+        return sum(1 for c in self.citations if c.quote_repair)
 
     @property
     def grounded(self) -> bool:
@@ -174,9 +176,16 @@ def validate(
 
         quote = citation.quote.strip()
         verified = False
-        if len(_normalize(quote)) >= MIN_QUOTE_CHARS:
-            verified = _normalize(quote) in _normalize(body)
-            if not verified:
+        repair = ""
+        if len(canonical(quote)) >= MIN_QUOTE_CHARS:
+            checked = check_quote(quote, body, marginal_note=note)
+            verified, repair = checked.verified, checked.repair
+            if verified:
+                # What is displayed is what verified, not what the model wrote: a
+                # label copied in front of the text is removed rather than shown to
+                # the user as part of the statute.
+                quote = checked.quote
+            else:
                 # Drop the quotation but keep the citation: a fabricated quotation
                 # is worse than none, while the section reference may still be sound.
                 result.dropped.append(
@@ -197,6 +206,7 @@ def validate(
                 chapter=chapter,
                 quote=quote,
                 quote_verified=verified,
+                quote_repair=repair,
                 source_url=url,
                 source=document,
             )

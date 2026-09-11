@@ -28,6 +28,7 @@ from app.ingest import cache_path, parse_act, parse_schedule, schedule_path
 from app.llm import get_provider
 from app.qa import Answer, BaselineLLM, Citation, RetrievalQA
 from app.retrieval import ScheduleLookup, VectorIndex
+from app.retrieval.chunking import ACT_DOCUMENTS, document_for
 
 REPO_ROOT = pathlib.Path(__file__).resolve().parents[3]
 RUNS_DIR = REPO_ROOT / "eval" / "runs"
@@ -229,11 +230,20 @@ async def run_stage(
     if not corpus_file.exists():
         print("corpus not fetched; run: python -m app.ingest")
         return 2
-    corpus = parse_act(
-        corpus_file.read_text(encoding="utf-8", errors="replace"),
-        act_id=75,
-        source_url="https://bdlaws.minlaw.gov.bd/act-print-75.html",
-    )
+    # Every ingested act, keyed by the document code its citations carry. Scoring
+    # resolves a citation against the document it claims, and a Penal Code section
+    # checked against the Code of Criminal Procedure is checked against the wrong
+    # text: the numbering overlaps for most of its range.
+    corpora = {}
+    for act_id in sorted(ACT_DOCUMENTS):
+        path = cache_path(act_id)
+        if path.exists():
+            corpora[document_for(act_id)] = parse_act(
+                path.read_text(encoding="utf-8", errors="replace"),
+                act_id=act_id,
+                source_url=f"https://bdlaws.minlaw.gov.bd/act-print-{act_id}.html",
+            )
+    entries = parse_schedule(schedule_path()) if schedule_path().exists() else []
 
     questions = load_gold()
     if limit:
@@ -259,7 +269,7 @@ async def run_stage(
             if not schedule_path().exists():
                 print("Schedule II not ingested; run: python -m app.ingest --schedule")
                 return 2
-            lookup = ScheduleLookup(parse_schedule(schedule_path()))
+            lookup = ScheduleLookup(entries)
             print(f"offence lookup: {len(lookup.entries)} Schedule II rows")
 
         system = RetrievalQA(provider, index, name=name, lookup=lookup)
@@ -309,7 +319,7 @@ async def run_stage(
     cache_hits = 0
     for question, (answer, was_cached) in zip(questions, results, strict=True):
         cache_hits += int(was_cached)
-        scores.append(score_question(question, answer, corpus))
+        scores.append(score_question(question, answer, corpora, schedule=entries))
 
     summary = aggregate(scores)
     summary["stage"] = stage
@@ -375,6 +385,7 @@ def _report(summary: dict) -> None:
         ("citation precision", "citation_precision"),
         ("answer hit rate", "answer_hit_rate"),
         ("excerpt validity", "excerpt_validity"),
+        ("  of which matched as written", "excerpt_validity_unrepaired"),
         ("refusal accuracy", "refusal_accuracy"),
         ("refused when unanswerable", "refused_when_unanswerable"),
         ("refused when answerable", "refused_when_answerable"),

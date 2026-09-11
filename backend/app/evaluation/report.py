@@ -314,17 +314,27 @@ def chart_retrieval() -> pathlib.Path | None:
     return out
 
 
+# Reported in the table but not charted. Excerpt validity counts a quotation that
+# verified after a citation label was trimmed off it (ADR 0011); this counts only
+# the ones that matched the statute as written. Publishing both means a reader who
+# disagrees with the allowance can read the stricter number.
+STRICT = ("excerpt_validity_unrepaired", "Excerpt validity (as written)")
+
+
 def markdown_table(runs: list[dict]) -> str:
-    header = "| Model | Stage | System | Measured | " + " | ".join(
-        label for _, label in HEADLINE
-    ) + " |"
-    divider = "|---" * (4 + len(HEADLINE)) + "|"
+    columns = [*HEADLINE, STRICT]
+    header = (
+        "| Model | Stage | System | Measured | "
+        + " | ".join(label for _, label in columns)
+        + " |"
+    )
+    divider = "|---" * (4 + len(columns)) + "|"
     lines = [header, divider]
     for model, items in sorted(group_by_model(runs).items()):
         for run in items:
             cells = [
                 "n/a" if run.get(key) is None else f"{run[key] * 100:.1f}%"
-                for key, _ in HEADLINE
+                for key, _ in columns
             ]
             lines.append(
                 f"| {model} | {run['stage']} | {run['system']} | "

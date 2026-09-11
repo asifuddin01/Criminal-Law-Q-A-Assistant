@@ -9,18 +9,13 @@ answer claims, or does not exist at all.
 
 from __future__ import annotations
 
-import re
 from dataclasses import asdict, dataclass, field
 
 from app.evaluation.dataset import GoldQuestion
-from app.qa.schema import Answer
-
-# Quotes shorter than this match too easily to be evidence of anything.
-MIN_QUOTE_CHARS = 20
-
-
-def _normalize(text: str) -> str:
-    return re.sub(r"\s+", " ", text).strip().lower()
+from app.ingest.models import Act, ScheduleEntry
+from app.qa.quoting import MIN_QUOTE_CHARS, canonical, check_quote
+from app.qa.schema import CRPC, SCHEDULE_II, Answer
+from app.retrieval.chunking import schedule_rows
 
 
 @dataclass(slots=True)
@@ -43,6 +38,10 @@ class QuestionScore:
 
     hallucinated_sections: list[str] = field(default_factory=list)
     unsupported_quotes: list[str] = field(default_factory=list)
+    # Quotations that verified only after a label was trimmed or an elision read as
+    # one. Counted separately so excerpt validity can be reported with and without
+    # the allowance rather than quietly including it.
+    quotes_repaired: int = 0
 
     @property
     def measured(self) -> bool:
@@ -65,8 +64,27 @@ class QuestionScore:
         return self.citations_correct > 0
 
 
-def score_question(question: GoldQuestion, answer: Answer, corpus) -> QuestionScore:
-    """Score one answer against its gold entry and the parsed corpus."""
+def score_question(
+    question: GoldQuestion,
+    answer: Answer,
+    corpora: Act | dict[str, Act],
+    *,
+    schedule: list[ScheduleEntry] | None = None,
+) -> QuestionScore:
+    """Score one answer against its gold entry and the parsed corpus.
+
+    `corpora` maps a document code to the act it names; a bare Act is read as the
+    Code, which is what it meant when there was only one. A citation is resolved
+    against the document it claims. Scoring every citation against the Code — which
+    this did — compared a Schedule II quotation to whichever Code section happened
+    to share its number, and marked the offence questions stage 4 exists to answer
+    as unsupported.
+    """
+    acts = corpora if isinstance(corpora, dict) else {CRPC: corpora}
+    schedule_text = {c.section_number: c.text for c in schedule_rows(schedule or [])}
+    schedule_notes = {
+        e.penal_code_section: e.offence.strip().rstrip(".") for e in (schedule or [])
+    }
     score = QuestionScore(
         question_id=question.id,
         slice=question.slice.value,
@@ -99,8 +117,17 @@ def score_question(question: GoldQuestion, answer: Answer, corpus) -> QuestionSc
             score.hallucinated_sections.append(citation.section)
             continue
 
-        section = corpus.section(number)
-        if section is None:
+        if citation.document == SCHEDULE_II:
+            body = schedule_text.get(number, "")
+            note = schedule_notes.get(number, "")
+        else:
+            act = acts.get(citation.document)
+            section = act.section(number) if act is not None else None
+            body = section.text if section is not None else ""
+            note = ""
+            if section is not None and section.marginal_notes:
+                note = section.marginal_notes[0]
+        if not body:
             score.hallucinated_sections.append(number)
             continue
 
@@ -108,11 +135,12 @@ def score_question(question: GoldQuestion, answer: Answer, corpus) -> QuestionSc
         if f"{citation.document}:{number}" in gold or number in gold_numbers:
             score.citations_correct += 1
 
-        quote = _normalize(citation.quote)
-        if len(quote) >= MIN_QUOTE_CHARS:
+        if len(canonical(citation.quote)) >= MIN_QUOTE_CHARS:
             score.quotes_checked += 1
-            if quote in _normalize(section.text):
+            checked = check_quote(citation.quote, body, marginal_note=note)
+            if checked.verified:
                 score.quotes_valid += 1
+                score.quotes_repaired += int(bool(checked.repair))
             else:
                 score.unsupported_quotes.append(citation.quote[:120])
 
@@ -139,6 +167,7 @@ def aggregate(scores: list[QuestionScore]) -> dict:
     correct_denominator = sum(s.citations_made for s in answerable)
     quotes = sum(s.quotes_checked for s in measured)
     valid_quotes = sum(s.quotes_valid for s in measured)
+    repaired_quotes = sum(s.quotes_repaired for s in measured)
 
     by_slice: dict[str, dict] = {}
     for score in scores:
@@ -181,7 +210,12 @@ def aggregate(scores: list[QuestionScore]) -> dict:
         if any(s.retrieved for s in measured)
         else None,
         "excerpt_validity": _ratio(valid_quotes, quotes),
+        # Excerpt validity counting only quotations that matched as written. The
+        # gap between the two is the cost of the allowances, stated rather than
+        # absorbed into a single rate.
+        "excerpt_validity_unrepaired": _ratio(valid_quotes - repaired_quotes, quotes),
         "quotes_checked": quotes,
+        "quotes_repaired": repaired_quotes,
         "refusal_accuracy": _ratio(
             sum(1 for s in measured if s.decided_correctly), len(measured)
         ),

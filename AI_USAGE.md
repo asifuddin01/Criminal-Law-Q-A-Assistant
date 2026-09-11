@@ -249,3 +249,41 @@ Tests written for one behaviour routinely walk through code paths nobody chose t
 examine, which is an argument for writing them even where the behaviour seems obvious
 enough not to need one.
 
+
+### 10. Two copies of one rule, and only one of them was fixed
+
+**What happened.** Citations are checked in two places: the validation gate, which
+decides what a user is shown, and the evaluation scorer, which decides what the
+experiment log reports. Both had to answer "does this quotation appear in the section
+it cites", and each had its own implementation of it.
+
+When the corpus grew past a single act, the gate was taught to resolve a citation
+against the document it claims — Penal Code section 300 against the Penal Code, a
+Schedule II row against Schedule II. The scorer was not. It went on resolving every
+citation against the Code of Criminal Procedure, so a faithful Schedule II quotation
+about theft was compared against Code section 379, which is about appeals.
+
+The effect was quiet and pointed in the wrong direction: it understated the system on
+exactly the offence questions stage 4 was built to answer, and it reported citations as
+hallucinated when the model had cited correctly into a document the scorer declined to
+look in.
+
+**How it was caught.** By not believing a rate. Stage 4 reported 65.6% excerpt validity
+and 99.0% citation existence, so I read all 97 quotations individually instead of
+recording the number. Most of the failures were quotations a lawyer would call
+faithful.
+
+**Correction.** One implementation, in `app/qa/quoting.py`, used by both. The
+duplication is the actual defect; the divergence was only its symptom.
+
+**Lesson recorded.** I wrote both copies, and writing the second one is where the
+assistant's habits show: asked to score answers, it implements scoring, and it
+implements the comparison it needs rather than looking for the one already written
+twenty lines away in another module. Nothing flags it. Both copies are correct on the
+day they are written, the tests pass on both, and they only disagree later, when one is
+changed for a reason that did not obviously apply to the other.
+
+The tell is a rule stated in prose in two files. `validation.py` and `metrics.py` each
+opened with a docstring promising that a quotation is checked verbatim against its
+section. That sentence appearing twice was the warning, and I wrote it twice without
+noticing.

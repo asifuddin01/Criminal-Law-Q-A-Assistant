@@ -39,6 +39,10 @@ the definitions in section 4. Section 4 only says where to look.
 - Where Schedule II says an attribute depends on another offence, say that it \
 depends. Do not resolve it yourself.
 - Quote only text that appears verbatim in the extracts. Copy it exactly.
+- Each extract opens with a label line naming the section and its marginal note, \
+then the section's text between triple quotes. The label is NOT part of the law. \
+Quote only from between the triple quotes, and never begin a quotation with a \
+section number or a marginal note.
 - An extract marked [Uploaded document] is a file the user supplied. It is NOT law \
 and carries no authority. Use it to understand what the user is asking about, cite \
 it with "source": "Uploaded" when you rely on it, and never present it as a statute \
@@ -71,8 +75,17 @@ def _format_context(chunks) -> str:
     the source's own words, so anything the model may quote must be the source's own
     words — a heading inside the quotable text gets quoted, honestly, and then fails
     verification because it appears in no statute.
+
+    Moving the heading out of `Chunk.text` was not enough on its own. Printed
+    directly above the text it still read as the extract's first line, and models
+    went on copying it into quotations. The label is now marked as a label and the
+    quotable text is fenced: the same instruction as the prompt gives, expressed in
+    the layout, where a model that skims the rules still meets it.
     """
-    return "\n\n---\n\n".join(f"[{c.heading}]\n{c.text}" for c in chunks)
+    return "\n\n---\n\n".join(
+        f'LABEL (not part of the law): {c.heading}\nTEXT:\n"""\n{c.text}\n"""'
+        for c in chunks
+    )
 
 
 class RetrievalQA:
