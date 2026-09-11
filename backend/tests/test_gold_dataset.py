@@ -44,11 +44,27 @@ def corpora():
     }
     if schedule_path().exists():
         built["ScheduleII"] = ScheduleCorpus(parse_schedule(schedule_path()))
+
+    penal = cache_path(11)
+    if penal.exists():
+        built["PenalCode"] = parse_act(
+            penal.read_text(encoding="utf-8", errors="replace"),
+            act_id=11,
+            source_url="https://bdlaws.minlaw.gov.bd/act-print-11.html",
+        )
     return built
 
 
 def test_dataset_loads_and_ids_are_unique(gold):
-    assert len(gold) == 95
+    """A floor rather than an exact count.
+
+    The dataset grows as the corpus does — ingesting the Penal Code turned two
+    unanswerable questions answerable and needed six new out-of-scope ones to keep
+    the refusal slice meaningful. Pinning the exact size would fail on every such
+    change, which trains the reflex of editing the number rather than reading why it
+    moved. Shrinking below the floor still fails, because that weakens evaluation.
+    """
+    assert len(gold) >= 95
     assert len({q.id for q in gold}) == len(gold)
 
 

@@ -3,14 +3,14 @@
     "strategy": "naive_fixed_size",
     "chunks": 465,
     "model": "sentence-transformers/paraphrase-multilingual-MiniLM-L12-v2",
-    "questions": 72,
+    "questions": 75,
     "recall": {
-      "@1": 0.2083,
-      "@3": 0.4028,
-      "@5": 0.4167,
-      "@8": 0.5139,
-      "@10": 0.5278,
-      "@20": 0.5833
+      "@1": 0.2,
+      "@3": 0.3867,
+      "@5": 0.4,
+      "@8": 0.4933,
+      "@10": 0.5067,
+      "@20": 0.56
     },
     "hits_via_boundary_crossing_chunk": 26,
     "by_slice": {
@@ -27,10 +27,10 @@
         "recall@10": 0.4
       },
       "direct_lookup": {
-        "n": 40,
-        "recall@1": 0.175,
-        "recall@5": 0.4,
-        "recall@10": 0.525
+        "n": 43,
+        "recall@1": 0.1628,
+        "recall@5": 0.3721,
+        "recall@10": 0.4884
       },
       "multi_section": {
         "n": 12,
@@ -439,6 +439,48 @@
         ]
       },
       {
+        "id": "q-0064",
+        "question": "Is theft a bailable offence?",
+        "gold": [
+          "379"
+        ],
+        "top5": [
+          "237",
+          "403",
+          "180",
+          "181",
+          "521"
+        ]
+      },
+      {
+        "id": "q-0065",
+        "question": "Can the police arrest without a warrant for criminal breach of trust?",
+        "gold": [
+          "406"
+        ],
+        "top5": [
+          "403",
+          "59",
+          "345",
+          "54A",
+          "170"
+        ]
+      },
+      {
+        "id": "q-0066",
+        "question": "Which court may try an offence under section 302 of the Penal Code?",
+        "gold": [
+          "302"
+        ],
+        "top5": [
+          "29",
+          "196",
+          "238",
+          "250",
+          "182"
+        ]
+      },
+      {
         "id": "q-0088",
         "question": "আমলযোগ্য অপরাধের তথ্য থানায় কীভাবে লিপিবদ্ধ করা হয়?",
         "gold": [
@@ -528,14 +570,14 @@
     "strategy": "legal_aware",
     "chunks": 621,
     "model": "sentence-transformers/paraphrase-multilingual-MiniLM-L12-v2",
-    "questions": 72,
+    "questions": 75,
     "recall": {
-      "@1": 0.6111,
-      "@3": 0.7639,
-      "@5": 0.8472,
-      "@8": 0.8889,
-      "@10": 0.9028,
-      "@20": 0.9583
+      "@1": 0.5867,
+      "@3": 0.7333,
+      "@5": 0.8133,
+      "@8": 0.8533,
+      "@10": 0.8667,
+      "@20": 0.92
     },
     "hits_via_boundary_crossing_chunk": 0,
     "by_slice": {
@@ -552,10 +594,10 @@
         "recall@10": 0.4
       },
       "direct_lookup": {
-        "n": 40,
-        "recall@1": 0.75,
-        "recall@5": 1.0,
-        "recall@10": 1.0
+        "n": 43,
+        "recall@1": 0.6977,
+        "recall@5": 0.9302,
+        "recall@10": 0.9302
       },
       "multi_section": {
         "n": 12,
@@ -577,6 +619,48 @@
           "502",
           "496",
           "499"
+        ]
+      },
+      {
+        "id": "q-0064",
+        "question": "Is theft a bailable offence?",
+        "gold": [
+          "379"
+        ],
+        "top5": [
+          "497",
+          "519",
+          "496",
+          "403",
+          "522"
+        ]
+      },
+      {
+        "id": "q-0065",
+        "question": "Can the police arrest without a warrant for criminal breach of trust?",
+        "gold": [
+          "406"
+        ],
+        "top5": [
+          "54",
+          "59",
+          "47",
+          "61",
+          "85"
+        ]
+      },
+      {
+        "id": "q-0066",
+        "question": "Which court may try an offence under section 302 of the Penal Code?",
+        "gold": [
+          "302"
+        ],
+        "top5": [
+          "29",
+          "28",
+          "345",
+          "487",
+          "196"
         ]
       },
       {
@@ -633,6 +717,161 @@
           "366",
           "68",
           "345"
+        ]
+      },
+      {
+        "id": "q-0093",
+        "question": "পলাতক আসামির অনুপস্থিতিতে বিচার কীভাবে হয়?",
+        "gold": [
+          "339B"
+        ],
+        "top5": [
+          "337",
+          "366",
+          "544",
+          "356",
+          "398"
+        ]
+      },
+      {
+        "id": "q-0094",
+        "question": "১৪৪ ধারা অনুযায়ী কে আদেশ দিতে পারেন?",
+        "gold": [
+          "144"
+        ],
+        "top5": [
+          "337",
+          "367",
+          "68",
+          "134",
+          "69"
+        ]
+      }
+    ]
+  },
+  {
+    "strategy": "legal_aware_schedule",
+    "chunks": 1598,
+    "model": "sentence-transformers/paraphrase-multilingual-MiniLM-L12-v2",
+    "questions": 75,
+    "recall": {
+      "@1": 0.6133,
+      "@3": 0.76,
+      "@5": 0.8133,
+      "@8": 0.88,
+      "@10": 0.8933,
+      "@20": 0.92
+    },
+    "hits_via_boundary_crossing_chunk": 0,
+    "by_slice": {
+      "amended": {
+        "n": 10,
+        "recall@1": 0.8,
+        "recall@5": 0.8,
+        "recall@10": 0.9
+      },
+      "bangla": {
+        "n": 10,
+        "recall@1": 0.0,
+        "recall@5": 0.1,
+        "recall@10": 0.4
+      },
+      "direct_lookup": {
+        "n": 43,
+        "recall@1": 0.7209,
+        "recall@5": 0.9767,
+        "recall@10": 0.9767
+      },
+      "multi_section": {
+        "n": 12,
+        "recall@1": 0.5833,
+        "recall@5": 0.8333,
+        "recall@10": 1.0
+      }
+    },
+    "misses_at_10": [
+      {
+        "id": "q-0058",
+        "question": "May a court impose conditions when releasing an accused on bail?",
+        "gold": [
+          "498"
+        ],
+        "top5": [
+          "497",
+          "169",
+          "502",
+          "496",
+          "499"
+        ]
+      },
+      {
+        "id": "q-0066",
+        "question": "Which court may try an offence under section 302 of the Penal Code?",
+        "gold": [
+          "302"
+        ],
+        "top5": [
+          "29",
+          "28",
+          "345",
+          "487",
+          "196"
+        ]
+      },
+      {
+        "id": "q-0087",
+        "question": "গ্রেপ্তারের পর কতক্ষণ পর্যন্ত পুলিশ হেফাজতে রাখা যায়?",
+        "gold": [
+          "61"
+        ],
+        "top5": [
+          "339C",
+          "450",
+          "126",
+          "337",
+          "173"
+        ]
+      },
+      {
+        "id": "q-0089",
+        "question": "জামিনযোগ্য অপরাধে কি জামিন পাওয়া বাধ্যতামূলক?",
+        "gold": [
+          "496"
+        ],
+        "top5": [
+          "398",
+          "337",
+          "480",
+          "342",
+          "212"
+        ]
+      },
+      {
+        "id": "q-0090",
+        "question": "নারীর দেহ তল্লাশি কে করবে?",
+        "gold": [
+          "52"
+        ],
+        "top5": [
+          "92",
+          "47",
+          "318",
+          "48",
+          "45"
+        ]
+      },
+      {
+        "id": "q-0092",
+        "question": "একই অপরাধের জন্য কি দুইবার বিচার করা যায়?",
+        "gold": [
+          "403"
+        ],
+        "top5": [
+          "337",
+          "428",
+          "179",
+          "298",
+          "366"
         ]
       },
       {

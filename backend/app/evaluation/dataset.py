@@ -24,6 +24,7 @@ ACT_CODES: dict[str, int | None] = {
     "PenalCode": 11,
     "EvidenceAct": 24,
     "NariOShishu2000": None,
+    "NarcoticsControlAct": None,
     "CrPC-Schedule-II": None,
     # Schedule II is a table of Penal Code offences, not an act. Written without a
     # space because gold labels split on the first hyphen and the code must survive
@@ -44,6 +45,8 @@ ACT_CODES: dict[str, int | None] = {
 SECTION_EXPECTATIONS: dict[str, str] = {
     # Schedule II rows. The phrase asserts the row still describes the offence the
     # question was written about, not merely that the number resolves.
+    "PenalCode-300": "murder",
+    "PenalCode-379": "theft",
     "ScheduleII-302": "murder",
     "ScheduleII-379": "theft",
     "ScheduleII-406": "criminal breach of trust",

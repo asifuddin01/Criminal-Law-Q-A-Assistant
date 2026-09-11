@@ -508,3 +508,49 @@ the demo now shows both paths and says why each exists.
 **Decision.** Deliverable §08.6 satisfied. The update path is the same code the corpus
 uses in normal operation, not a demonstration script alongside it.
 
+### 2026-09-12 — Adding the Penal Code, and the check ADR 0007 promised
+
+**Objective.** Add a real related act through the production update path, and test
+ADR 0007's stated risk: that general and special provisions on the same subject would
+compete and degrade retrieval on core questions.
+
+**Method.** The Penal Code, 1860 (act-11, 555 sections, 601 chunks) was fetched before
+bdlaws became unreachable. It was added with `python -m app.retrieval.update`, and
+retrieval-only evaluation was run before and after — no model in the loop, so any
+change is attributable to the corpus.
+
+**Result.** The addition cost only the new act's embeddings: **601 of 1598 chunks
+embedded, 62% reused, 19.2 seconds**. The corpus went from 997 to 1598 chunks.
+
+Retrieval did not degrade. It improved.
+
+| Index | Chunks | R@1 | R@10 | direct_lookup R@10 |
+|---|---|---|---|---|
+| legal_aware (CrPC only) | 621 | 58.7% | 86.7% | 93.0% |
+| + Schedule II + Penal Code | 1598 | **61.3%** | **89.3%** | **97.7%** |
+
+The competition ADR 0007 anticipated did not materialise at this corpus size. That is a
+measurement, not a guarantee — it says nothing about what happens at ten acts, and the
+check is cheap enough to repeat on every addition.
+
+**A bug this nearly caused.** `legal_aware` hardcoded every chunk's document as the
+Code. Adding the Penal Code would have labelled all 601 of its sections as CrPC
+sections, so "Penal Code section 302" — murder — would have been cited as CrPC section
+302, and the citation validator would have confirmed it against the wrong statute.
+Chunk ids collided for the same reason: two acts both have a section 302, so an
+incremental update would have treated one as a modification of the other. Both are
+fixed, and chunk ids now carry the document code.
+
+**Two questions became answerable.** "What is the punishment for theft?" and "What is
+the legal definition of murder?" were marked unanswerable pending the Penal Code, and
+now resolve to Penal Code sections 379 and 300. Promoting them dropped the refusal
+slice to 18.9% of the dataset, below the 20% floor a test enforces — a dataset weighted
+toward answerable questions teaches a system to always answer. Six genuinely
+out-of-scope questions were added rather than lowering the floor, covering the Evidence
+Act, civil procedure, labour, company and narcotics law.
+
+One of them is deliberately a near miss: "is a confession to a police officer
+admissible against the accused?" Admissibility is Evidence Act section 25, but CrPC
+sections 162 and 164 are about confessions and will retrieve well. The corpus must
+decline rather than answer from 164, and nothing else in the dataset tests that.
+

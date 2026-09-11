@@ -19,11 +19,28 @@ from app.ingest.models import Act
 # validator checking it against the wrong document would confirm it.
 CRPC = "CrPC"
 SCHEDULE_II = "ScheduleII"
+PENAL_CODE = "PenalCode"
+EVIDENCE_ACT = "EvidenceAct"
 
 # Human-facing names. The codes above are identifiers — they appear in gold labels,
 # in retrieved-section lists and in metrics, so they must be stable and free of
 # spaces. What a reader sees is a separate concern.
-DISPLAY_NAMES = {CRPC: "Code of Criminal Procedure", SCHEDULE_II: "Schedule II"}
+DISPLAY_NAMES = {
+    CRPC: "Code of Criminal Procedure",
+    SCHEDULE_II: "Schedule II",
+    PENAL_CODE: "Penal Code",
+    EVIDENCE_ACT: "Evidence Act",
+}
+
+# bdlaws act id to document code. An act absent from this map is still ingestible;
+# its chunks carry "act-<id>" so they remain distinguishable from every other
+# document rather than silently defaulting to the Code.
+ACT_DOCUMENTS = {75: CRPC, 11: PENAL_CODE, 24: EVIDENCE_ACT}
+
+
+def document_for(act_id: int) -> str:
+    """The document code a given act's sections cite into."""
+    return ACT_DOCUMENTS.get(act_id, f"act-{act_id}")
 
 
 @dataclass(frozen=True, slots=True)
@@ -46,10 +63,12 @@ class Chunk:
     def citation(self) -> str:
         if self.document == CRPC:
             return f"section {self.section_number}"
-        return (
-            f"{DISPLAY_NAMES[self.document]}, "
-            f"Penal Code section {self.section_number}"
-        )
+        if self.document == SCHEDULE_II:
+            # Schedule II is a table *of* Penal Code offences, so a row is named by
+            # the Penal Code section it classifies, not by a section of its own.
+            return f"Schedule II, Penal Code section {self.section_number}"
+        name = DISPLAY_NAMES.get(self.document, self.document)
+        return f"{name} section {self.section_number}"
 
     @property
     def identifier(self) -> str:
@@ -117,7 +136,7 @@ def naive_fixed_size(
         end_owner = section_at(min(start + len(window) - 1, len(document) - 1))
         chunks.append(
             Chunk(
-                chunk_id=f"naive-{index:05d}",
+                chunk_id=f"naive-{document_for(act.act_id)}-{index:05d}",
                 text=window,
                 section_number=owner.number,
                 marginal_note=owner.marginal_notes[0] if owner.marginal_notes else "",
@@ -125,6 +144,7 @@ def naive_fixed_size(
                 chapter=owner.chapter,
                 strategy="naive_fixed_size",
                 crosses_section_boundary=end_owner is not owner,
+                document=document_for(act.act_id),
             )
         )
     return chunks
@@ -158,6 +178,7 @@ def legal_aware(act: Act, *, limit: int = 1400) -> list[Chunk]:
     cite it.
     """
     chunks: list[Chunk] = []
+    document = document_for(act.act_id)
     for section in act.sections:
         text = section.text.strip()
         if not text:
@@ -167,7 +188,10 @@ def legal_aware(act: Act, *, limit: int = 1400) -> list[Chunk]:
         for part_index, piece in enumerate(_split_at_subsections(text, limit)):
             chunks.append(
                 Chunk(
-                    chunk_id=f"legal-{section.number}-{part_index}",
+                    # The act code is part of the id: two acts both have a section
+                    # 302, and colliding ids would make an incremental update treat
+                    # one as a modification of the other.
+                    chunk_id=f"legal-{document}-{section.number}-{part_index}",
                     text=f"{header}\n{piece}",
                     section_number=section.number,
                     marginal_note=note,
@@ -175,6 +199,7 @@ def legal_aware(act: Act, *, limit: int = 1400) -> list[Chunk]:
                     chapter=section.chapter,
                     strategy="legal_aware",
                     crosses_section_boundary=False,
+                    document=document,
                 )
             )
     return chunks

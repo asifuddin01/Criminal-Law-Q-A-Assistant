@@ -175,7 +175,10 @@ def _parse_amendments(soup: BeautifulSoup) -> dict[int, Amendment]:
 
 def _act_metadata(soup: BeautifulSoup) -> tuple[str, str | None]:
     title_el = soup.select_one("h3")
-    title = _clean(title_el.get_text(" ", strip=True)) if title_el else "Unknown Act"
+    # The heading can carry an amendment marker, which reads as part of the name:
+    # the Penal Code came through as "1 The Penal Code, 1860".
+    title = _strip_markers(title_el)[0] if title_el else "Unknown Act"
+    title = re.sub(r"^\d+\s+(?=[A-Z])", "", title)
     number = None
     header = _clean(soup.get_text(" ", strip=True)[:800])
     match = re.search(r"\(\s*ACT\s+NO\.\s*([^)]+?)\s*\)", header, re.I)

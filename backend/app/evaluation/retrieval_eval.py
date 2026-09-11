@@ -94,7 +94,11 @@ def evaluate(strategy: str) -> dict:
 
 
 def main() -> int:
-    strategies = [s for s in ("naive_fixed_size", "legal_aware") if VectorIndex.exists(s)]
+    # Every index that has been built, not a fixed list: adding an act creates a
+    # new index to compare against the old one, and ADR 0007 requires checking that
+    # an addition has not degraded retrieval on the core questions.
+    known = ("naive_fixed_size", "legal_aware", "legal_aware_schedule")
+    strategies = [s for s in known if VectorIndex.exists(s)]
     if not strategies:
         print("no indexes built; run: python -m app.retrieval.build --strategy legal_aware")
         return 2

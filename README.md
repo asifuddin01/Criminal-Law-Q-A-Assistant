@@ -183,7 +183,7 @@ Affairs Division. Three source shapes:
 
 | Shape | Endpoint | Handling |
 |---|---|---|
-| Whole act | `act-print-<id>.html` | One request per act. Segmented by section marker; footnotes parsed into amendment records |
+| Whole act | `act-print-<id>.html` | One request per act. Segmented by section marker; footnotes parsed into amendment records. CrPC and the Penal Code are ingested |
 | Schedule | `upload/act/…Schedule-II.pdf` | 161-page PDF, extracted into 376 structured offence rows |
 | Amending acts | Individual acts | Ingested with role `amending`, excluded from retrieval as law |
 
@@ -213,7 +213,11 @@ cd backend && uv run python -m app.retrieval.demo
 |---|---|---|---|
 | Full build, Code only | 621 of 621 | — | 19.3 s |
 | Add Schedule II (376 rows) | 376 of 997 | 62% | 14.0 s |
+| **Add the Penal Code (601 sections)** | **601 of 1598** | **62%** | **19.2 s** |
 | Amend one section | **1 of 997** | **99.9%** | < 0.1 s |
+
+The Penal Code row is a real addition through the production CLI, not a simulation. The
+corpus went from 997 to 1598 chunks and the existing 997 kept the vectors they had.
 
 Each addition is followed by an evaluation run, so an act that degrades retrieval on core
 CrPC questions is detected rather than presumed harmless.
