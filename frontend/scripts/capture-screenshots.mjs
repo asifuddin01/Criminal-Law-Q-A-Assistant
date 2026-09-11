@@ -75,10 +75,23 @@ async function askExample(page, fragment) {
   await page.waitForTimeout(400);
 }
 
+// Capture a subset by name fragment: `node scripts/capture-screenshots.mjs 04`.
+// A full run costs several model calls against a small daily allowance, so being
+// able to redo only the shot that failed matters more than it sounds.
+const only = process.argv.slice(2);
+const selected = only.length
+  ? SHOTS.filter((s) => only.some((fragment) => s.name.includes(fragment)))
+  : SHOTS;
+
+if (!selected.length) {
+  console.error(`no shots match ${only.join(", ")}`);
+  process.exit(1);
+}
+
 const browser = await chromium.launch({ channel: "chrome" });
 await mkdir(OUT, { recursive: true });
 
-for (const shot of SHOTS) {
+for (const shot of selected) {
   const context = await browser.newContext({
     viewport: { width: 1000, height: 1400 },
     deviceScaleFactor: 2,
