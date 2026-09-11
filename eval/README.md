@@ -16,13 +16,30 @@ determine the next change.
 |---|---|---|
 | **Recall@k** | Fraction of questions where at least one gold section appears in the top *k* retrieved chunks | Upper bound on answerable questions. Generation cannot recover what retrieval missed. |
 | **Citation precision** | Of sections cited in the answer, the fraction that are both correct and actually present in the retrieved context | Directly measures the failure this system exists to avoid: confident citation of the wrong provision. |
-| **Faithfulness** | Fraction of answer claims supported by the cited text | Catches answers that cite a real section but assert something it does not say. |
+| **Answer hit rate** | Fraction of answerable questions where the answer cites at least one gold section | Whether the right provision reached the answer, not just the retrieved set. |
 | **Refusal accuracy** | Correct refusals plus correct answers, over all questions, on the unanswerable slice | The brief requires handling of ambiguous and unsupported questions. Unmeasured refusal behaviour tends to collapse into either never refusing or refusing everything. |
 | **Excerpt validity** | Fraction of quoted excerpts that are exact substrings of stored source text | A cheap, deterministic check that catches fabricated quotations without a model in the loop. |
 
-Recall@k and excerpt validity are deterministic. Citation precision is deterministic given
-gold section labels. Faithfulness requires judgement and is scored by an LLM judge against a
-rubric, with a manually scored subset each stage to check the judge has not drifted.
+Every metric reported is deterministic. Recall@k, excerpt validity and citation existence
+need no labels beyond the corpus itself; citation precision and answer hit rate are
+deterministic given the gold section labels.
+
+**On the faithfulness metric this file originally specified.** It was planned as an
+LLM judge scoring "fraction of answer claims supported by the cited text" against a
+rubric, with a manually scored subset each stage to check for drift. It was not built,
+and the omission is deliberate rather than unfinished.
+
+Two reasons. An LLM judge grading an LLM's answers shares the failure it is meant to
+detect — both find the same fluent-but-unsupported prose plausible — and calibrating it
+would take a manually scored subset large enough that scoring the whole set by hand
+becomes the cheaper option. And the specific failure the judge was there to catch, an
+answer asserting something its cited section does not say, is caught in its most
+damaging form by the deterministic excerpt check: a claim attributed to statutory words
+that do not exist in that section fails, with no model asked for an opinion.
+
+What is not caught is an answer that quotes correctly and then characterises the quote
+wrongly in its own prose. That gap is real, it is not measured, and it is listed in the
+project's limitations rather than papered over with a number nobody has calibrated.
 
 ## Dataset
 

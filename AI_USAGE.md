@@ -287,3 +287,47 @@ The tell is a rule stated in prose in two files. `validation.py` and `metrics.py
 opened with a docstring promising that a quotation is checked verbatim against its
 section. That sentence appearing twice was the warning, and I wrote it twice without
 noticing.
+
+### 11. I dry-ran one of three, then applied to all three
+
+**What happened.** A small ingestion fix meant the indexes needed updating. I ran
+`python -m app.retrieval.update --dry-run` against `legal_aware_schedule`, read a
+sensible result — 37 of 1598 chunks changed — and then applied the update to all three
+indexes in a loop.
+
+The command derives its chunk set from a function that always builds legal-aware chunks
+over every ingested act plus Schedule II, regardless of which index it was pointed at.
+On `legal_aware_schedule` that is correct, which is why the dry run looked fine. On the
+other two it is a replacement. The naive-chunk index went from 465 chunks to 1598, and
+the legal-aware CrPC-only index went from 621 to 1598. Both became copies of the stage 4
+corpus.
+
+Stages 2 and 3 exist to measure one variable: chunking strategy. Their indexes had just
+become identical. The comparison would have run, produced numbers, and shown a smaller
+difference than before — which I would have had to explain, and could have explained
+plausibly and wrongly.
+
+**How it was caught.** The output said so — `1598 added, 0 changed, 0 unchanged, 465
+removed` — and I read it. It was caught in the second between running the command and
+reading its result, which is not a system, and the reason there is now a guard.
+
+**Correction.** The update reads the index's own chunking strategy and documents off
+its chunks rather than assuming, and refuses when an operation would add and remove more
+than a quarter of the index, naming the rebuild command instead. Both indexes were
+rebuilt and verified at their original sizes.
+
+**Lesson recorded.** Two failures stacked, and only one of them was the assistant's.
+
+Mine: a dry run on one of three targets is not a dry run. I generalised a safe result
+across targets that were not the same, which is the identical shape of reasoning that
+put `document=CRPC` in a function taking an act as its argument (entry 8) — assuming a
+dimension is constant because in the case in front of me it was.
+
+The code's: a command whose destructive scope is not derived from its argument. The
+`--index` flag chose what to overwrite but not what to overwrite it with. A flag that
+selects a target without selecting the target's definition is a loaded gun, and the
+dry-run made it look safe.
+
+The failure was silent in the only way that matters here: nothing errored, the indexes
+were valid, the tests passed, and the evaluation would have reported confidently on a
+comparison that no longer existed.

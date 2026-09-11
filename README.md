@@ -15,8 +15,9 @@ says so rather than producing one.
 
 ## Status
 
-Early. Design and scaffold are in place; the retrieval pipeline is not yet built. This table
-is the honest state of the repository, not a roadmap.
+Complete and measured end to end on the local model; the hosted model has completed stages 1
+and 2 and is rate-limited beyond that. This table is the honest state of the repository, not
+a roadmap.
 
 | Component | State |
 |---|---|
@@ -25,8 +26,9 @@ is the honest state of the repository, not a roadmap.
 | Evaluation methodology | Defined — [eval/README.md](eval/README.md) |
 | Backend service, provider abstraction | Working, tested, connected to Groq |
 | Ingestion pipeline | Parser working, tested — 522 sections, 599 amendments |
-| Retrieval and generation | Complete on local model; hosted stages 2-3 pending quota |
-| Evaluation dataset | Built — 95 questions, all labels validated |
+| Retrieval and generation | Complete — four stages measured on the local model; hosted stages 3-4 pending quota |
+| Corpus | CrPC (522 sections), Schedule II (376 offence rows), Penal Code (555 sections) |
+| Evaluation dataset | Built — 101 questions, all labels verified against fetched text |
 | Frontend | Working — text, speech, image and document input; verified citations |
 | Speech input | Working — `whisper-large-v3`, English and Bangla |
 | Image input | Working — local OCR (tesseract, English + Bengali) |
@@ -199,13 +201,21 @@ clause ([ADR 0007](docs/adr/0007-inclusion-criterion-for-related-laws.md)).
 an act, replacing one with a newer consolidation, and removing one are the same operation:
 
 ```bash
-cd backend && uv run python -m app.retrieval.update --dry-run   # what would change
-cd backend && uv run python -m app.retrieval.update             # apply it
+cd backend && uv run python -m app.retrieval.update --index legal_aware_schedule --dry-run
+cd backend && uv run python -m app.retrieval.update --index legal_aware_schedule
 ```
 
 Chunks are matched on a stable id and compared on a hash of their text, so only new or
 altered chunks are embedded. A source republished with one provision amended re-embeds one
 provision.
+
+Name the index every time, and dry-run the one you are about to change rather than a
+sibling. The update reads that index's own chunking strategy and document set off its
+chunks — `naive_fixed_size` over the Code alone stays that, and is not converged onto the
+full corpus because another index holds it. An operation that would add and remove more
+than a quarter of an index is refused as a rebuild in disguise, since the runs already
+recorded against an index stop being comparable the moment it changes shape underneath
+them.
 
 **Demonstration** ([transcript](docs/incremental-update-demo.txt)):
 
@@ -231,9 +241,10 @@ CrPC questions is detected rather than presumed harmless.
 Metrics, dataset schema and construction protocol: **[eval/README.md](eval/README.md)**.
 
 The same dataset runs after every stage, so each change is attributable to a movement in a
-number and a change that moves nothing is recorded as such. Five metrics; three are
-deterministic. Faithfulness uses an LLM judge checked against a manually scored subset each
-stage.
+number and a change that moves nothing is recorded as such. Every reported metric is
+deterministic — no model is asked whether another model was honest. A faithfulness metric
+scored by an LLM judge was specified early and deliberately not built; the reasoning, and
+the gap it leaves, are in [eval/README.md](eval/README.md).
 
 The dataset is stratified — direct lookup, multi-section, amended provisions, unanswerable,
 ambiguous, Bangla. The unanswerable and ambiguous slices are not padding: a system tuned only
@@ -269,6 +280,14 @@ find wrong in places, inventing phrases that are not Bengali legal terms. The fe
 is therefore usable on the hosted provider and should be treated as unavailable on the
 local one. Statutory excerpts are never translated in either case — see
 [the translation module](backend/app/qa/translate.py) for why.
+
+**Prose that misreads a correct quotation is not measured.** Every reported metric is
+deterministic, which is a strength and also a boundary. The checks establish that a cited
+section exists, that retrieval put it in front of the model, and that a quoted excerpt is
+the section's own words. They do not establish that the surrounding sentences characterise
+that excerpt correctly. An answer that quotes section 54 accurately and then describes it
+wrongly passes every check here. Measuring it needs either a calibrated judge or manual
+scoring, and the reasoning for taking neither is in [eval/README.md](eval/README.md).
 
 **Case law is out of scope.** The corpus is statutory. Judicial interpretation frequently
 determines how a provision operates in practice, and none of it is here.

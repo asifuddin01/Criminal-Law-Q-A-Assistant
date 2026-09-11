@@ -336,9 +336,14 @@ def markdown_table(runs: list[dict]) -> str:
                 "n/a" if run.get(key) is None else f"{run[key] * 100:.1f}%"
                 for key, _ in columns
             ]
+            covered = f"{run['measured']}/{run['questions']}"
+            if run.get("missing_answers"):
+                # The dataset grew after this run was recorded. Say so in the cell
+                # rather than letting "93/93" read as complete coverage.
+                covered += f" of {run['dataset_questions']}"
             lines.append(
                 f"| {model} | {run['stage']} | {run['system']} | "
-                f"{run['measured']}/{run['questions']} | " + " | ".join(cells) + " |"
+                f"{covered} | " + " | ".join(cells) + " |"
             )
     return "\n".join(lines)
 

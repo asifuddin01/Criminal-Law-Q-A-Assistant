@@ -336,6 +336,19 @@ async def run_stage(
     (destination / "summary.json").write_text(
         json.dumps(summary, indent=2, ensure_ascii=False), encoding="utf-8"
     )
+    # The answers themselves, in full. A score is derived from an answer, and
+    # deriving it again after the scorer is corrected should not mean asking the
+    # model again — which for a hosted run means spending budget to re-measure
+    # text that has not changed. Written beside the scores so a run is always
+    # re-scorable: see app/evaluation/rescore.py.
+    with (destination / "answers.jsonl").open("w", encoding="utf-8") as handle:
+        for question, (answer, _) in zip(questions, results, strict=True):
+            handle.write(
+                json.dumps(
+                    {"question_id": question.id, **asdict(answer)}, ensure_ascii=False
+                )
+                + "\n"
+            )
     with (destination / "per_question.jsonl").open("w", encoding="utf-8") as handle:
         for question, (answer, _), score in zip(questions, results, scores, strict=True):
             handle.write(
