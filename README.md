@@ -33,6 +33,7 @@ a roadmap.
 | Speech input | Working — `whisper-large-v3`, English and Bangla |
 | Image input | Working — local OCR (tesseract, English + Bengali) |
 | Document upload | Working — PDF and text, never treated as law |
+| Amendment provenance | Working — every citation carries how and when the section changed |
 
 ## What it looks like
 
@@ -86,8 +87,15 @@ citation that cannot name a section is not verifiable.
 **Documents carry a role, and only operative law is retrievable as law.** An amending act's
 text is a diff, not a provision. Indexing it flat alongside the Code lets a question about
 what a section provides retrieve a 1976 ordinance's instruction to delete a word — genuine
-text, resolving citation, wrong answer.
+text, resolving citation, wrong answer. The role is inferred from the document's own title;
+the update path skips a non-operative act and names it, and `build` refuses one outright.
 ([ADR 0006](docs/adr/0006-document-roles-separate-operative-law-from-amending-instruments.md))
+
+**A section's current wording is not the whole answer.** Every citation carries the
+amendments that produced it — what changed, under which act, and from what date — because a
+provision substituted with effect from a date after the events being asked about is the
+wrong provision for those events, and nothing in the text says so. Section 54 comes back
+noting that it was substituted by Act XI of 2026 with effect from 10 August 2025.
 
 **Modality is erased at the API boundary.** Speech, image and text converge on
 `(question_text, attached_documents, language)` before retrieval, so one evaluation harness
@@ -277,8 +285,9 @@ real**, on either model. Every later stage is measured against that.
 
 Stated now rather than discovered later.
 
-**No point-in-time reconstruction.** The system reports when a provision changed and under
-which act, but does not reconstruct the text as it stood on a past date. bdlaws publishes
+**No point-in-time reconstruction.** The system reports when a provision changed, under
+which act and from what date, and links the amending act — but it does not reconstruct the
+text as it stood on a past date. bdlaws publishes
 only the current consolidation, and the footnotes do not always preserve replaced wording in
 full. Approximating this would be worse than declining it.
 

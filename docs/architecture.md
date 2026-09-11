@@ -110,6 +110,11 @@ flowchart TB
     DROP --> OUT
 ```
 
+A verified citation is returned with the amendments attached to its section — operation,
+footnote text, amending act and effective date, most recent first. Those records come from
+the footnote apparatus parsed at ingestion and are tied to their location in the text by
+footnote marker.
+
 All three validation checks are deterministic. None asks a model whether it was honest. The
 first resolves a citation against the document it names, because section numbers repeat
 across acts — Penal Code section 379 is theft, Code of Criminal Procedure section 379 is
