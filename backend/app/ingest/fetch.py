@@ -24,6 +24,37 @@ REPO_ROOT = pathlib.Path(__file__).resolve().parents[3]
 RAW_DIR = REPO_ROOT / "data" / "raw"
 
 
+# Schedule II is published separately from the act text, as a PDF. It is not
+# optional: sections 4(1)(b) and 4(1)(f) define "bailable offence" and "cognizable
+# offence" by reference to it, so offence-classification questions are answerable
+# from this file and from nothing else in the corpus.
+SCHEDULE_II_URL = f"{BASE_URL}/upload/act/2026-05-05-11-47-47-Schedule-II.pdf"
+SCHEDULE_II_FILENAME = "crpc-schedule-ii.pdf"
+
+
+def schedule_path() -> pathlib.Path:
+    return RAW_DIR / SCHEDULE_II_FILENAME
+
+
+def fetch_schedule(*, force: bool = False, timeout: float = 300.0) -> pathlib.Path:
+    """Fetch Schedule II, returning the path to the cached copy."""
+    destination = schedule_path()
+    if destination.exists() and not force:
+        return destination
+
+    RAW_DIR.mkdir(parents=True, exist_ok=True)
+    with httpx.Client(
+        timeout=timeout, follow_redirects=True, headers={"User-Agent": USER_AGENT}
+    ) as client:
+        response = client.get(SCHEDULE_II_URL)
+        response.raise_for_status()
+
+    temporary = destination.with_suffix(".partial")
+    temporary.write_bytes(response.content)
+    temporary.replace(destination)
+    return destination
+
+
 def act_print_url(act_id: int) -> str:
     """The single-document print view for an act. See ADR 0005."""
     return f"{BASE_URL}/act-print-{act_id}.html"
@@ -74,7 +105,19 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument(
         "--force", action="store_true", help="re-fetch even if already cached"
     )
+    parser.add_argument(
+        "--schedule",
+        action="store_true",
+        help="fetch Schedule II (the offence classification table) as well",
+    )
     args = parser.parse_args(argv)
+
+    if args.schedule:
+        cached = schedule_path().exists()
+        path = fetch_schedule(force=args.force)
+        state = "cached" if cached and not args.force else "fetched"
+        print(f"{state}: Schedule II -> {path} ({path.stat().st_size:,} bytes)")
+        print(f"  sha256: {source_hash(path)}")
 
     for act_id in args.act_ids:
         cached = cache_path(act_id).exists()

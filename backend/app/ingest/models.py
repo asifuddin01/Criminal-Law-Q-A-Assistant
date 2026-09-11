@@ -100,6 +100,44 @@ class Section(BaseModel):
         return hashlib.sha256(self.text.encode("utf-8")).hexdigest()
 
 
+class Triable(StrEnum):
+    """A yes/no column in Schedule II, which is not always yes or no.
+
+    Many entries read "According as the offence abetted is bailable or not" — the
+    attribute genuinely depends on another offence. Recording that as False would be
+    a wrong answer to "is this bailable?" rather than an honest "it depends".
+    """
+
+    YES = "yes"
+    NO = "no"
+    DEPENDS = "depends"
+    UNKNOWN = "unknown"
+
+
+class ScheduleEntry(BaseModel):
+    """One row of Schedule II: an offence and how it is procedurally treated.
+
+    Section 4(1)(b) and 4(1)(f) of the Code define "bailable offence" and
+    "cognizable offence" by reference to this schedule, so questions like "is theft
+    bailable?" are answered here and nowhere else in the corpus.
+    """
+
+    penal_code_section: str
+    offence: str
+    cognizable: Triable = Triable.UNKNOWN
+    warrant_or_summons: str = ""
+    bailable: Triable = Triable.UNKNOWN
+    compoundable: Triable = Triable.UNKNOWN
+    punishment: str = ""
+    triable_by: str = ""
+    chapter: str | None = None
+    page: int = 0
+
+    @property
+    def citation(self) -> str:
+        return f"Penal Code s.{self.penal_code_section}"
+
+
 class Act(BaseModel):
     """A statute, with its sections and amendment apparatus."""
 
