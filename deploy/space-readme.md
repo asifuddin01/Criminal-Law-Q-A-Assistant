@@ -5,7 +5,7 @@ colorFrom: indigo
 colorTo: gray
 sdk: gradio
 app_file: space_app.py
-python_version: "3.12"
+python_version: "3.12.12"
 pinned: false
 preload_from_hub:
   - qdrant/paraphrase-multilingual-MiniLM-L12-v2-onnx-Q

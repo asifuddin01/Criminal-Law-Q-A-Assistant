@@ -35,8 +35,20 @@ rather than re-downloaded, which is what keeps a 240 MB fetch off the first ques
 ### 1. Create the Space
 
 At [huggingface.co/new-space](https://huggingface.co/new-space): **Gradio** SDK, blank
-template, **CPU basic** hardware, public. Leave the license blank unless you have chosen
-one.
+template, public, license blank unless you have chosen one.
+
+**Hardware: CPU basic.** Not ZeroGPU, even though it is offered free. This application
+uses no GPU — embeddings are ONNX on CPU and the language model is called over HTTP — so a
+GPU would sit idle while bringing constraints that do not help:
+
+- ZeroGPU supports only Python 3.12.12 and 3.10.13
+- hosting one requires an account older than 30 days with a verified email, and a newer
+  account fails in a way that reads like a build error
+- it is subject to a GPU queue and a 5-minute daily quota that this workload never uses
+
+Hardware can be changed at any time under **Settings → Hardware**, so a Space created with
+ZeroGPU can simply be switched. The Python version is pinned to `3.12.12` in the Space
+README, which is valid on both, so neither choice breaks the build.
 
 ### 2. Push
 
