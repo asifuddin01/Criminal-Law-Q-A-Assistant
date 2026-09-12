@@ -52,6 +52,21 @@ Two ZeroGPU constraints do apply, and both are already handled:
   newer account fails in a way that reads like a build error rather than an eligibility one,
   so check that first if the Space will not start.
 
+**ZeroGPU will not start a Space that declares no GPU work.** The startup check fails with
+`No @spaces.GPU function detected during startup`, and it is fatal — the build succeeds, the
+application starts, and the platform stops it anyway.
+
+There is no honest GPU work in this system to give it. Retrieval embeds one short query with
+an ONNX model, where the host-to-device transfer would cost more than the arithmetic it
+saves, and the language model is an HTTP request to somebody else's accelerator. So
+`space_app.py` declares one `@spaces.GPU` function and never calls it. That is stated plainly
+in the code rather than dressed up: the Space runs on the CPU it is given and consumes none
+of the shared GPU pool it is admitted to, which is the most considerate thing it can do with
+an allocation it did not need.
+
+The import is optional, so the same file still runs locally where the `spaces` package does
+not exist.
+
 A Space created on ZeroGPU cannot always be downgraded to CPU basic afterwards: Hugging Face
 treats that as a downgrade and may require PRO. Choosing the hardware at creation avoids the
 question entirely.

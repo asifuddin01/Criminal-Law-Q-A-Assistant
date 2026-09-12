@@ -48,6 +48,11 @@ os.environ.setdefault(
 
 import gradio as gr  # noqa: E402
 import uvicorn  # noqa: E402
+
+try:  # Present on a Space, absent when this file is run locally.
+    import spaces  # noqa: E402
+except ModuleNotFoundError:
+    spaces = None
 from starlette.responses import RedirectResponse  # noqa: E402
 
 from app.legal import DISCLAIMER  # noqa: E402
@@ -97,6 +102,26 @@ async def answer_question(question: str) -> str:
             lines.append(f"[Read it on bdlaws.minlaw.gov.bd]({citation.source_url})")
         lines.append("")
     return "\n".join(lines)
+
+
+if spaces is not None:
+
+    @spaces.GPU(duration=1)
+    def _zerogpu_probe() -> str:
+        """Declared because ZeroGPU will not start a Space without one.
+
+        `No @spaces.GPU function detected during startup` is a hard failure, and
+        this account's free tier offers ZeroGPU and nothing else — CPU basic
+        needs a subscription. So the decorator has to exist.
+
+        It is never called, and that is not a workaround so much as the honest
+        answer: there is no GPU work here. Retrieval embeds one short query with
+        an ONNX model where a host-to-device transfer would cost more than the
+        arithmetic it saves, and the language model is an HTTP request to
+        somebody else's accelerator. The Space runs on the CPU it is given and
+        consumes none of the shared GPU pool it is admitted to.
+        """
+        return "ok"
 
 
 with gr.Blocks(title="Criminal Law Q&A — Bangladesh") as fallback:
