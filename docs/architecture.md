@@ -74,7 +74,11 @@ sections split at subsection boundaries with the section header repeated, so eve
 carries the identity needed to cite it.
 
 Schedule II is extracted as rows rather than prose. A chunk spanning a row boundary would
-silently attribute one offence's bailability to another.
+silently attribute one offence's bailability to another. The row is rendered as sentences
+for the index, so that "is theft bailable" embeds near it — and a citation to it carries the
+parsed columns as well, so the reader sees the whole row rather than whichever sentence the
+model quoted from it
+([ADR 0012](adr/0012-show-the-schedule-row-rather-than-a-chosen-line.md)).
 
 ## 3. Query
 

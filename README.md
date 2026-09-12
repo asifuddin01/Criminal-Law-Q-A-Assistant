@@ -23,7 +23,7 @@ a roadmap.
 
 | Component | State |
 |---|---|
-| Architecture decisions | **Recorded** — 11 ADRs in [docs/adr/](docs/adr/) |
+| Architecture decisions | **Recorded** — 12 ADRs in [docs/adr/](docs/adr/) |
 | Source survey | **Complete** — [DATA_SOURCE.md](DATA_SOURCE.md) |
 | Evaluation methodology | **Defined and applied** — [eval/README.md](eval/README.md) |
 | Backend service, provider abstraction | **Built and tested** — Groq and Ollama, switchable from the interface |
@@ -37,7 +37,7 @@ a roadmap.
 | Image input | **Delivered** — local OCR via tesseract, English and Bengali |
 | Document upload | **Delivered** — PDF and text, never treated as law |
 | Amendment provenance | **Delivered** — every citation carries how and when its section changed |
-| Deployment | **Live and answering** — [criminal-law-qa-bangladesh](https://huggingface.co/spaces/asifuddin01/criminal-law-qa-bangladesh) |
+| Deployment | **Live and answering** — [criminal-law-qa-bangladesh](https://huggingface.co/spaces/asifuddin01/criminal-law-qa-bangladesh), serving the interface below |
 | Demo recording | **Recorded** — [docs/demo-local-model.webm](docs/demo-local-model.webm), three questions on the local model |
 
 ## What was asked for, and what this does
@@ -51,7 +51,7 @@ Everything the brief required, including all three optional inputs.
 | Section-level citations | With verbatim excerpts, each checked against the source before display |
 | Refuse when unsupported | A first-class outcome with its own metric — 90.1% refusal accuracy at stage 4 |
 | Evaluation | 101 questions, six runs, one scorer over all of them |
-| Documentation of approach | This file, [EXPERIMENTS.md](EXPERIMENTS.md), 11 [ADRs](docs/adr/), [AI_USAGE.md](AI_USAGE.md) |
+| Documentation of approach | This file, [EXPERIMENTS.md](EXPERIMENTS.md), 12 [ADRs](docs/adr/), [AI_USAGE.md](AI_USAGE.md) |
 | *Optional:* image input | tesseract OCR, English + Bengali |
 | *Optional:* speech input | `whisper-large-v3`, English and Bangla |
 | *Optional:* document upload | PDF and text, never treated as law |
@@ -68,6 +68,7 @@ Each of these exists because something measurable went wrong without it.
 | Misattribution told apart from fabrication | Real text under the wrong section is a chunking bug; invented text is a model bug. |
 | Two excerpt-validity rates published | Publishing the strict one means nobody has to trust my allowances. |
 | Structured Schedule II lookup | "Is theft bailable?" embeds near the sections *about* bail; the row that answers it ranks nowhere. |
+| The Schedule II row shown in full ([ADR 0012](docs/adr/0012-show-the-schedule-row-rather-than-a-chosen-line.md)) | A table's answer is a column. Asked about bail, the small model quoted the cognizability line — verbatim, verified, and not the answer. |
 | Document roles ([ADR 0006](docs/adr/0006-document-roles-separate-operative-law-from-amending-instruments.md)) | An amending act's text is a diff, not a provision — it must never answer as law. |
 | Amendment provenance on every citation | Section 54 was substituted in force from 10 August 2025; the current wording does not say so. |
 | Incremental index updates | A corpus you must rebuild in full is a corpus nobody updates. |
@@ -80,6 +81,10 @@ Each of these exists because something measurable went wrong without it.
 
 **Try it:** [criminal-law-qa-bangladesh](https://huggingface.co/spaces/asifuddin01/criminal-law-qa-bangladesh)
 · **Watch it:** [docs/demo-local-model.webm](docs/demo-local-model.webm)
+
+The Space serves the interface in these screenshots — the Next.js application, exported to
+static files and served by the same process that serves the API. It is not a second, plainer
+demo of the same pipeline; it is the same page.
 
 The recording asks three questions, each chosen to show something different: section 54 with
 the amendment that produced its current wording, *is theft bailable* answered from the
@@ -110,6 +115,18 @@ August 2025. The current wording does not say that, and whether this section gov
 matter depends on when the matter arose. Citations group by section — three verified
 excerpts from section 54 are three pieces of evidence for one provision, not three
 provisions.
+
+**A table's answer is a column, not a sentence**
+
+![A Schedule II citation showing the parsed row above the quoted line](docs/screenshots/06-schedule-ii-row.png)
+
+Schedule II rows are indexed as prose so that *is theft bailable* retrieves them, which
+leaves the model choosing which of six sentences to quote — and asked this, the local model
+quoted the cognizability line: verbatim, verified, and about a different column. The columns
+are parsed, so the row is shown rather than chosen
+([ADR 0012](docs/adr/0012-show-the-schedule-row-rather-than-a-chosen-line.md)). The excerpt
+is still there, still checked; it is now evidence beside the source rather than the only way
+to see it.
 
 **An English answer with its citations checked**
 
@@ -262,21 +279,22 @@ container on one port. Steps, limits and the local `docker run`:
 
 The API key goes in the host's own secrets page, never in the repository.
 
-**What the free tier costs, stated up front:** the Space runs under the `gradio` SDK on
-ZeroGPU because Docker and CPU-basic both need a subscription, so the public interface is
-Gradio's rather than the Next.js application; one shared token allowance is about 60
-questions a day before it says so and recovers; and the optional local model is re-fetched
-on every cold start — 3.3 GB — then answers in minutes on two shared vCPUs. The full table
-is in [docs/DEPLOY.md](docs/DEPLOY.md). None of it affects the evaluation, which runs
-locally.
+**What the free tier costs, stated up front:** one shared token allowance is about 60
+questions a day before the Space says so and recovers, and the optional local model is
+re-fetched on every cold start — 3.3 GB — then answers in minutes on two shared vCPUs. The
+full table is in [docs/DEPLOY.md](docs/DEPLOY.md). None of it affects the evaluation, which
+runs locally.
 
 Docker Spaces, and on some accounts CPU-basic hardware, are gated behind a paid tier, so the
 Space runs under the `gradio` SDK on ZeroGPU hardware — which allocates a GPU only inside
-`@spaces.GPU` calls, and this application never makes one — which serves this project's own FastAPI application rather than a Gradio
-interface, keeping the real frontend. A working Gradio interface onto the same pipeline is
-mounted at `/gradio/` as a hedge, because running FastAPI that way is not a documented
-pattern. The `Dockerfile` is still there and is still the better option wherever Docker
-Spaces are available; it is built and verified for `linux/amd64`.
+`@spaces.GPU` calls, and this application never makes one. **The interface it serves is this
+project's own**, not Gradio's: the Next.js application exports to static files, so the Space
+serves the page and the API from one process on one origin, the same arrangement the
+container uses. Gradio's Blocks are still built and launched, because ZeroGPU will not start
+a Space that declares no `@spaces.GPU` function and only `launch()` reports one — its
+interface stays behind as the fallback, served at the root if the export is ever missing.
+The `Dockerfile` is still there and is still the better option wherever Docker Spaces are
+available; it is built and verified for `linux/amd64`.
 
 Cold start is 21 seconds, down from 59 before Schedule II was precomputed ahead of time:
 81% of the original startup was re-parsing a 161-page PDF that never changes, on every wake

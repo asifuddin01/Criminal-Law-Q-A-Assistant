@@ -70,6 +70,16 @@ const SHOTS = [
       await page.waitForTimeout(400);
     },
   },
+  {
+    name: "06-schedule-ii-row",
+    caption: "A Schedule II citation carries the parsed row, not only the quoted line",
+    async run(page) {
+      // The shot exists because of what it replaced: asked this, the local model
+      // quoted the row's cognizability line — verbatim, verified, and about a
+      // different column. The row is parsed, so it is shown rather than chosen.
+      await askExample(page, "Is theft a bailable offence");
+    },
+  },
 ];
 
 async function askExample(page, fragment) {

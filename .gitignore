@@ -52,5 +52,9 @@ frontend/next-env.d.ts
 # Built frontend, copied in by the Docker build. Not a source artefact.
 backend/static/
 
+# The exported interface, staged here by deploy/push-to-space.sh on its way to
+# the Space. Build output, same as backend/static/.
+deploy/space/web/
+
 # Playwright scratch from an interrupted recording.
 docs/.video-raw/

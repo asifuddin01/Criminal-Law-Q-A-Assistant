@@ -28,6 +28,7 @@ from app.schemas import (
     HealthResponse,
     ImageTextResponse,
     MetaResponse,
+    OffenceOut,
     ProviderChoice,
     ProviderInfo,
     TranscriptionResponse,
@@ -275,6 +276,7 @@ async def ask(request: AskRequest, http_request: Request) -> AskResponse:
                 chapter=c.chapter,
                 quote=c.quote,
                 quote_verified=c.quote_verified,
+                offence=OffenceOut(**asdict(c.offence)) if c.offence else None,
                 source_url=c.source_url,
                 amendments=[AmendmentOut(**asdict(a)) for a in c.amendments],
             )

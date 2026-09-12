@@ -2,11 +2,14 @@
  * Record a short demo by driving the real application.
  *
  *   node scripts/record-demo.mjs [output-basename]
+ *   MODEL=local node scripts/record-demo.mjs demo-local-model
  *
- * Both servers must be running, and the recording shows whichever model the
- * backend is configured for — LLM_PROVIDER decides that, not this script. Generated rather than screen-captured, for the
- * same reason the screenshots are: a recording nobody can reproduce is a claim
- * about a version of the app that no longer exists.
+ * Both servers must be running. Which model answers is chosen in the page, so
+ * MODEL picks it here rather than the recording depending on how the backend
+ * happened to be started; unset, it records whatever the deployment defaults to.
+ * Generated rather than screen-captured, for the same reason the screenshots
+ * are: a recording nobody can reproduce is a claim about a version of the app
+ * that no longer exists.
  *
  * Three questions, chosen because each shows a different thing the system does:
  * a section with amendment history, an offence answered from Schedule II rather
@@ -26,6 +29,9 @@ const APP = process.env.APP_URL ?? "http://localhost:3000";
 // The local model answers in tens of seconds on CPU, the hosted one in a few.
 const ANSWER_TIMEOUT = Number(process.env.ANSWER_TIMEOUT ?? 180_000);
 const BASENAME = process.argv[2] ?? "demo";
+// "hosted" | "local" | unset. The label on the button, which is also what a
+// viewer of the recording sees selected.
+const MODEL = process.env.MODEL ?? "";
 
 const QUESTIONS = [
   {
@@ -89,6 +95,19 @@ const page = await context.newPage();
 
 await page.goto(APP, { waitUntil: "networkidle" });
 await page.waitForTimeout(1800);
+
+if (MODEL) {
+  // The control only exists once /api/meta has said which models this
+  // deployment has, so it is waited for rather than assumed.
+  const label = MODEL === "local" ? "Local" : "Hosted";
+  const button = page.locator(".models button", { hasText: label }).first();
+  await button.waitFor({ timeout: 15_000 });
+  if (await button.isDisabled()) {
+    throw new Error(`the ${label} model is not available in this deployment`);
+  }
+  await button.click();
+  await page.waitForTimeout(900);
+}
 
 for (const { text, shows } of QUESTIONS) {
   console.log(`  asking: ${text}`);

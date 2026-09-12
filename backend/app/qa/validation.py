@@ -51,6 +51,30 @@ class AmendmentNote:
 
 
 @dataclass(frozen=True, slots=True)
+class OffenceFacts:
+    """The Schedule II row behind a Schedule II citation.
+
+    A row is a table, and a model quoting it quotes one line of it. Which line it
+    picks is a choice it can get wrong: asked whether theft is bailable, the local
+    model quoted the cognizability line — verbatim, verified, and not the answer.
+    The reader was left with a one-sentence conclusion and an excerpt about
+    something else.
+
+    The columns are parsed at ingestion, so they can be shown rather than
+    selected. What the table says about the offence is then displayed in full,
+    from the parse, and the explanation stops depending on a 3B model picking the
+    right sentence out of a table. Nothing here is generated.
+    """
+
+    cognizable: str
+    bailable: str
+    compoundable: str
+    triable_by: str = ""
+    punishment: str = ""
+    warrant_or_summons: str = ""
+
+
+@dataclass(frozen=True, slots=True)
 class VerifiedCitation:
     section: str
     marginal_note: str
@@ -66,6 +90,8 @@ class VerifiedCitation:
     quote_repair: str = ""
     # Amendments attached to this section, most recent first.
     amendments: tuple[AmendmentNote, ...] = ()
+    # The Schedule II row this citation names, for citations that name one.
+    offence: OffenceFacts | None = None
 
 
 @dataclass(slots=True)
@@ -174,6 +200,7 @@ def validate(
             note = "uploaded document"
             part, chapter, url = None, None, ""
             amendments = ()
+            offence = None
         elif is_schedule:
             entry = schedule_by_section.get(number)
             if entry is None:
@@ -191,6 +218,14 @@ def validate(
             url = SCHEDULE_URL
             # Schedule II is a table, not a section; its rows carry no footnotes.
             amendments = ()
+            offence = OffenceFacts(
+                cognizable=str(entry.cognizable),
+                bailable=str(entry.bailable),
+                compoundable=str(entry.compoundable),
+                triable_by=entry.triable_by.strip(),
+                punishment=entry.punishment.strip(),
+                warrant_or_summons=entry.warrant_or_summons.strip(),
+            )
         else:
             act = acts.get(document)
             if act is None:
@@ -220,6 +255,7 @@ def validate(
             part, chapter = section.part, section.chapter
             url = SOURCE_URL.format(act_id=act.act_id, number=number)
             amendments = _amendment_notes(act, section)
+            offence = None
 
         if require_retrieved and allowed and f"{document}:{number}" not in allowed:
             # The model produced a section it was never shown. Whether or not the
@@ -267,6 +303,7 @@ def validate(
                 quote_verified=verified,
                 quote_repair=repair,
                 amendments=amendments,
+                offence=offence,
                 source_url=url,
                 source=document,
             )

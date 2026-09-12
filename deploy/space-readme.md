@@ -45,11 +45,14 @@ so this runs under the `gradio` SDK on ZeroGPU — which allocates a GPU only in
 `@spaces.GPU` calls, and this application never makes one. It is a CPU workload: embeddings
 are ONNX, and the language model is an HTTP call.
 
-The interface here is Gradio's. The project ships a Next.js application, which lives in the
-repository with screenshots. The pipeline behind both is identical — the same retrieval, the
-same citation validation, the same amendment provenance — and the API is mounted under
-`/api`, so `POST /api/ask` returns the citations, their verification status and the
-amendments behind them as JSON.
+The interface is the project's own: the Next.js application in the repository, exported to
+static files and served from the root of this Space by the process that serves the API. One
+origin, and no Node at runtime. Gradio's Blocks are still launched — ZeroGPU will not start
+a Space that declares no `@spaces.GPU` function, and only `launch()` reports one — and its
+interface is the fallback, served at the root if the export is ever missing.
+
+The API is mounted under `/api`, so `POST /api/ask` returns the citations, their
+verification status and the amendments behind them as JSON.
 
 Everything a build step would prepare is committed instead, because this SDK has none: the
 parsed Schedule II rows, the corpus and the vector index.

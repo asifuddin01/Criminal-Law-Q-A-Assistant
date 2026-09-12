@@ -178,6 +178,46 @@ def test_a_schedule_citation_resolves_against_schedule_ii(corpus, schedule):
 
 @corpus_only
 @schedule_only
+def test_a_schedule_citation_carries_its_row(corpus, schedule):
+    """ADR 0012. A table's answer to "is this bailable" is a column.
+
+    The row is indexed as prose so the question retrieves it, which leaves the
+    model choosing which of six sentences to quote — and it has quoted the
+    cognizability line in answer to a question about bail. The columns are
+    parsed, so they travel with the citation and the reader sees the row whatever
+    was quoted from it.
+    """
+    result = validate(
+        Answer(
+            text="Theft is not bailable.",
+            citations=[Citation(section="379", source="Schedule II")],
+            retrieved_sections=["ScheduleII:379"],
+        ),
+        corpus,
+        schedule=schedule,
+    )
+
+    row = result.citations[0].offence
+    assert row is not None
+    assert row.bailable == "no"
+    assert row.cognizable == "yes"
+    assert row.punishment and row.triable_by
+
+
+@corpus_only
+def test_a_section_citation_carries_no_row(corpus):
+    """A section is prose. There are no columns to show, and inventing a row for
+    one would put a table in front of text that has none."""
+    result = validate(
+        _answer([Citation(section="61")], retrieved_sections=["CrPC:61"]),
+        corpus,
+    )
+
+    assert result.citations[0].offence is None
+
+
+@corpus_only
+@schedule_only
 def test_a_penal_code_number_is_not_validated_against_the_crpc(corpus, schedule):
     """The reason citations carry a source at all. Penal Code section 379 is theft;
     CrPC section 379 is about appeals. A citation claiming Schedule II must be

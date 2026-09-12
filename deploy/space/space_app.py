@@ -4,13 +4,15 @@ Docker Spaces are not on this account's tier and CPU-basic hardware needs a
 subscription, so this runs under the `gradio` SDK on ZeroGPU — which allocates a
 GPU only inside `@spaces.GPU` calls, and this application never makes one.
 
-The interface here is Gradio's. The project's own interface is a Next.js
-application, which is in the repository with screenshots; serving it from a Space
-is possible but needs Gradio's server-side rendering disabled and its index route
-replaced, and a demo is not worth that much machinery. The pipeline behind both
-is identical — the same retrieval, the same citation validation, the same
-amendment provenance — and the API is mounted under `/api` so it can be
-exercised directly.
+The interface is the project's own: the Next.js application, exported to static
+files and served from the root of this Space by the process that serves the API.
+One origin, no Node at runtime, which is why the production build asks for
+`/api/ask` with no host in front of it.
+
+Gradio's Blocks are still built and launched, because ZeroGPU will not start a
+Space that declares no `@spaces.GPU` function and only `launch()` reports one.
+Its interface is the fallback: it is served at the root whenever the export is
+absent, and displaced by the real one when it is not.
 
 Everything a build step would prepare is committed instead, because this SDK has
 none: the parsed Schedule II, the corpus and the vector index. The embedding
@@ -73,7 +75,10 @@ try:  # Present on a Space, absent when this file is run locally.
     import spaces  # noqa: E402
 except ModuleNotFoundError:
     spaces = None
-from fastapi import FastAPI  # noqa: E402
+from fastapi import FastAPI, Request  # noqa: E402
+from fastapi.responses import FileResponse  # noqa: E402
+from fastapi.staticfiles import StaticFiles  # noqa: E402
+from starlette.routing import Mount, Route  # noqa: E402
 
 from app.api.routes import router as api_router  # noqa: E402
 from app.legal import DISCLAIMER  # noqa: E402
@@ -108,6 +113,9 @@ if spaces is not None:
         """
         return "ok"
 
+
+# The exported Next.js application, placed here by deploy/push-to-space.sh.
+WEB = ROOT / "web"
 
 HOSTED_LABEL = "Hosted — openai/gpt-oss-120b"
 LOCAL_LABEL = "Local — qwen2.5:3b-instruct"
@@ -186,23 +194,72 @@ async def answer_question(question: str, provider_label: str | None = None) -> s
         return f"**Withheld.** {result.reason or answer.text}"
 
     lines = [answer.text, "", "---", ""]
-    for citation in result.citations:
+    lines.extend(_render_citations(result.citations))
+    return "\n".join(lines)
+
+
+OFFENCE_VALUE = {
+    "yes": "Yes",
+    "no": "No",
+    "depends": "Depends on the underlying offence",
+    "unknown": "Not stated in the schedule",
+}
+
+
+def _render_citations(citations) -> list[str]:
+    """One block per cited provision, not per quotation.
+
+    A provision can be quoted twice, and rendered once each the list repeats the
+    heading and the link and reads as two sources where there is one.
+
+    A Schedule II citation also prints its row. The excerpt beside it is one line
+    of a table chosen by the model, and asked whether theft is bailable the local
+    model quoted the cognizability line — verbatim, verified, and not the answer.
+    The columns come from the parse, so the table can be shown rather than
+    selected from.
+    """
+    grouped: dict[tuple[str, str], list] = {}
+    for citation in citations:
+        grouped.setdefault((citation.source, citation.section), []).append(citation)
+
+    lines: list[str] = []
+    for (source, section), group in grouped.items():
+        first = group[0]
         heading = (
-            f"Schedule II · Penal Code s.{citation.section}"
-            if citation.source == "ScheduleII"
-            else f"Section {citation.section}"
+            f"Schedule II · Penal Code s.{section}"
+            if source == "ScheduleII"
+            else f"Section {section}"
         )
-        note = f" — {citation.marginal_note}" if citation.marginal_note else ""
+        note = f" — {first.marginal_note}" if first.marginal_note else ""
         lines.append(f"**{heading}**{note}")
-        if citation.quote:
-            lines.append(f"> {citation.quote}")
-        for amendment in citation.amendments:
+
+        if first.offence:
+            row = first.offence
+            lines.append("")
+            lines.append("| The row, from the parsed table | |")
+            lines.append("| --- | --- |")
+            for label, value in (
+                ("Cognizable", OFFENCE_VALUE.get(row.cognizable, row.cognizable)),
+                ("Bailable", OFFENCE_VALUE.get(row.bailable, row.bailable)),
+                ("Compoundable", OFFENCE_VALUE.get(row.compoundable, row.compoundable)),
+                ("Punishment", row.punishment),
+                ("Triable by", row.triable_by),
+                ("First process", row.warrant_or_summons),
+            ):
+                if value:
+                    lines.append(f"| {label} | {value} |")
+            lines.append("")
+
+        for citation in group:
+            if citation.quote:
+                lines.append(f"> {citation.quote}")
+        for amendment in first.amendments:
             when = amendment.effective_from or "date not stated"
             lines.append(f"*{amendment.operation}, in force from {when}*")
-        if citation.source_url:
-            lines.append(f"[Read it on bdlaws.minlaw.gov.bd]({citation.source_url})")
+        if first.source_url:
+            lines.append(f"[Read it on bdlaws.minlaw.gov.bd]({first.source_url})")
         lines.append("")
-    return "\n".join(lines)
+    return lines
 
 
 EXAMPLES = [
@@ -255,10 +312,12 @@ with gr.Blocks(title="Criminal Law Q&A — Bangladesh") as demo:
     question.submit(answer_question, [question, model], answer)
 
     gr.Markdown(
-        "The interface shipped with the project is a Next.js application; it is in "
-        "the repository with screenshots. This Space serves the same pipeline — the "
-        "same retrieval, the same citation validation, the same amendment "
-        "provenance — through Gradio, and exposes the API under `/api`.\n\n"
+        "This is the fallback interface. The project's own — the Next.js "
+        "application in the repository — is served at the root of this Space when "
+        "it has been exported into the deployment; you are seeing this one "
+        "because it was not. The pipeline is the same either way: the same "
+        "retrieval, the same citation validation, the same amendment provenance, "
+        "and the API under `/api`.\n\n"
         "Source, evaluation and the experiment log: "
         "https://github.com/asifuddin01/Criminal-Law-Q-A-Assistant"
     )
@@ -282,6 +341,49 @@ def _mount_application(server: FastAPI) -> None:
     api = FastAPI(docs_url=None, redoc_url=None, openapi_url=None)
     api.include_router(api_router)
     server.mount("/api", api)
+
+    _serve_frontend(server)
+
+
+def _serve_frontend(server: FastAPI) -> None:
+    """Put the project's own interface at the root of the Space.
+
+    The Next.js application is exported to static files at build time, so serving
+    it needs no Node process and no second origin — the page and the API come
+    from this one server, which is what lets the production build request
+    `/api/ask` with no host in front of it.
+
+    Starlette matches routes in the order they appear and Gradio registered `/`
+    while it built this app, so these go in front of that rather than after it.
+    Everything else Gradio serves — `/config`, `/queue/...`, `/assets/...` — is
+    untouched, and the Blocks still launch, which is what ZeroGPU is counting.
+
+    Moving Gradio's page under a prefix instead was tried and rejected. Gradio
+    derives the URL its client fetches from the request, and that derivation
+    reads `x-forwarded-host` when one is present: behind a Space's proxy the
+    prefix is dropped and the page works, run locally it is kept and every asset
+    404s. A page that only works deployed is the failure this file has already
+    paid for twice.
+
+    With no export present nothing is inserted and Gradio keeps the root, so a
+    deployment that ships without one still has an interface.
+    """
+    index = WEB / "index.html"
+    if not index.exists():
+        print("web: absent, Gradio's interface serves the root", flush=True)
+        return
+
+    async def _index(_request: Request) -> FileResponse:
+        return FileResponse(index)
+
+    routes = server.router.routes
+    routes.insert(
+        0, Mount("/_next", app=StaticFiles(directory=WEB / "_next"), name="next")
+    )
+    routes.insert(
+        0, Route("/", endpoint=_index, methods=["GET", "HEAD"], name="frontend")
+    )
+    print(f"web: {index}", flush=True)
 
 
 # Gradio builds its FastAPI app inside `launch()`, and on a Space it is the

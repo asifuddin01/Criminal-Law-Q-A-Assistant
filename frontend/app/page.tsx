@@ -9,6 +9,7 @@ import {
   type Citation,
   type Meta,
   type ImageText,
+  type Offence,
   type Transcription,
   type Translation,
   type UploadedDocument,
@@ -59,9 +60,24 @@ interface CitedSection {
   chapter: string | null;
   source_url: string;
   amendments: Amendment[];
+  offence: Offence | null;
   quotes: string[];
   verified: number;
 }
+
+/**
+ * A Schedule II column, in words.
+ *
+ * "depends" is the schedule's own answer, not a gap in the parse: many rows read
+ * "according as the offence abetted is bailable or not". Printing it as "No"
+ * would be a wrong answer where the table declines to give one.
+ */
+const OFFENCE_VALUE: Record<string, string> = {
+  yes: "Yes",
+  no: "No",
+  depends: "Depends on the underlying offence",
+  unknown: "Not stated in the schedule",
+};
 
 function groupBySection(citations: Citation[]): CitedSection[] {
   const bySection = new Map<string, CitedSection>();
@@ -78,11 +94,13 @@ function groupBySection(citations: Citation[]): CitedSection[] {
         chapter: c.chapter,
         source_url: c.source_url,
         amendments: c.amendments ?? [],
+        offence: c.offence ?? null,
         quotes: [],
         verified: 0,
       };
       bySection.set(key, entry);
     }
+    if (!entry.offence && c.offence) entry.offence = c.offence;
     if (c.quote && !entry.quotes.includes(c.quote)) entry.quotes.push(c.quote);
     if (c.quote_verified) entry.verified += 1;
   }
@@ -539,6 +557,54 @@ export default function Page() {
                         .filter(Boolean)
                         .join(" › ")}
                     </div>
+                  )}
+                  {citation.offence && (
+                    <>
+                      <p className="offence-lede">
+                        The row itself, from the parsed table — not model output
+                      </p>
+                      <dl className="offence">
+                        <div>
+                          <dt>Cognizable</dt>
+                          <dd>
+                            {OFFENCE_VALUE[citation.offence.cognizable] ??
+                              citation.offence.cognizable}
+                          </dd>
+                        </div>
+                        <div>
+                          <dt>Bailable</dt>
+                          <dd>
+                            {OFFENCE_VALUE[citation.offence.bailable] ??
+                              citation.offence.bailable}
+                          </dd>
+                        </div>
+                        <div>
+                          <dt>Compoundable</dt>
+                          <dd>
+                            {OFFENCE_VALUE[citation.offence.compoundable] ??
+                              citation.offence.compoundable}
+                          </dd>
+                        </div>
+                        {citation.offence.punishment && (
+                          <div>
+                            <dt>Punishment</dt>
+                            <dd>{citation.offence.punishment}</dd>
+                          </div>
+                        )}
+                        {citation.offence.triable_by && (
+                          <div>
+                            <dt>Triable by</dt>
+                            <dd>{citation.offence.triable_by}</dd>
+                          </div>
+                        )}
+                        {citation.offence.warrant_or_summons && (
+                          <div>
+                            <dt>First process</dt>
+                            <dd>{citation.offence.warrant_or_summons}</dd>
+                          </div>
+                        )}
+                      </dl>
+                    </>
                   )}
                   {citation.quotes.map((quote) => (
                     <blockquote key={quote}>{quote}</blockquote>

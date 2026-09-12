@@ -97,6 +97,21 @@ echo "==> checking the Space entrypoint"
     exit 1
 }
 
+echo "==> exporting the interface"
+# The Space serves this project's own interface rather than Gradio's, and
+# `output: "export"` turns it into static files — so the Space needs no Node at
+# runtime, but it does need these to exist and to be current. Built here rather
+# than committed, because a stale export deploys last week's page while the
+# repository shows this week's.
+#
+# Stop `npm run dev` first if it is running: a build sharing .next with a dev
+# server has corrupted it here before.
+(cd frontend && npm run build >/dev/null)
+if [ ! -f frontend/out/index.html ]; then
+    echo "frontend/out/index.html is missing after the build; not pushing" >&2
+    exit 1
+fi
+
 echo "==> precomputing the Schedule II parse"
 # 48 seconds of PDF parsing that would otherwise run on every cold start, and a
 # Gradio Space has no build step in which to do it.
@@ -118,6 +133,9 @@ rsync -a --quiet \
 cp data/raw/act-print-*.html "$STAGE/data/raw/"
 cp data/parsed/schedule-ii.json "$STAGE/data/parsed/"
 cp -R data/index/legal_aware_schedule "$STAGE/data/index/"
+
+# The exported interface, served from the root of the Space.
+cp -R frontend/out "$STAGE/web"
 
 # What the Space itself needs at its root.
 cp deploy/space/space_app.py deploy/space/local_model.py \

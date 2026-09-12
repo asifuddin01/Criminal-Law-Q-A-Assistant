@@ -8,6 +8,22 @@ export interface Amendment {
   source_url: string;
 }
 
+/**
+ * The Schedule II row behind a citation to Schedule II.
+ *
+ * The excerpt beside it is one line of a table, chosen by the model; the row is
+ * the whole of what the table says, taken from the parse. Only Schedule II
+ * citations carry one — a section of an act is prose, not columns.
+ */
+export interface Offence {
+  cognizable: string;
+  bailable: string;
+  compoundable: string;
+  triable_by: string;
+  punishment: string;
+  warrant_or_summons: string;
+}
+
 export interface Citation {
   section: string;
   source: string;
@@ -17,6 +33,7 @@ export interface Citation {
   quote: string;
   quote_verified: boolean;
   source_url: string;
+  offence: Offence | null;
   amendments: Amendment[];
 }
 

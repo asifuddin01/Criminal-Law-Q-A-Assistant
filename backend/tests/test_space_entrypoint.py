@@ -74,3 +74,42 @@ def test_the_entrypoint_is_not_named_app(source: str) -> None:
 def test_the_space_readme_points_at_this_file(source: str) -> None:
     readme = ENTRYPOINT.parents[1] / "space-readme.md"
     assert "app_file: space_app.py" in readme.read_text(encoding="utf-8")
+
+
+def test_the_exported_interface_is_served_at_the_root(source: str) -> None:
+    """The Space serves this project's interface, not Gradio's.
+
+    Everything else about this deployment already matched the repository; the
+    page a visitor actually saw did not.
+    """
+    assert 'Route("/"' in source, "nothing serves the root, so Gradio's page does"
+    assert 'Mount("/_next"' in source, "the page's JavaScript and stylesheet are not served"
+
+
+def test_the_frontend_routes_go_in_front_of_gradios(source: str) -> None:
+    """Starlette matches routes in the order they appear.
+
+    Gradio registered "/" while it built this app, so a route appended after it
+    is never reached: the Space would serve Gradio's page while holding the
+    exported one, and look entirely healthy doing it.
+    """
+    assert "routes.insert(" in source
+    assert "routes.append(" not in source, "an appended route is shadowed by Gradio's"
+
+
+def test_the_push_script_ships_the_export() -> None:
+    """The interface is built and staged, not assumed to be there.
+
+    `web/` is gitignored build output. Nothing else in the deployment would
+    notice its absence — the entrypoint falls back to Gradio's interface and the
+    Space starts cleanly, showing the wrong one.
+    """
+    script = (ENTRYPOINT.parents[1] / "push-to-space.sh").read_text(encoding="utf-8")
+    assert "npm run build" in script, "the export is never built"
+    assert 'cp -R frontend/out "$STAGE/web"' in script, "the export is never staged"
+
+
+def test_the_entrypoint_looks_where_the_push_script_puts_it(source: str) -> None:
+    script = (ENTRYPOINT.parents[1] / "push-to-space.sh").read_text(encoding="utf-8")
+    staged = 'cp -R frontend/out "$STAGE/web"' in script
+    assert staged and 'WEB = ROOT / "web"' in source

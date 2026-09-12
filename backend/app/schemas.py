@@ -107,6 +107,32 @@ class AmendmentOut(BaseModel):
     source_url: str = Field(default="", description="The amending act on bdlaws")
 
 
+class OffenceOut(BaseModel):
+    """The Schedule II row a Schedule II citation names.
+
+    Returned alongside the excerpt because the excerpt is one line of a table and
+    the model chooses which line. Asked whether theft is bailable it has quoted
+    the cognizability line: verbatim, verified, and not the answer. These columns
+    come from the parse, so the row can be shown in full rather than selected
+    from — an explanation that cannot drift from the source because no model
+    wrote it.
+
+    Each attribute is "yes", "no", "depends" or "unknown". "depends" is the
+    schedule's own answer for entries that read "according as the offence abetted
+    is bailable or not"; recording it as "no" would be a wrong answer rather than
+    an honest one.
+    """
+
+    cognizable: str = Field(description="yes | no | depends | unknown")
+    bailable: str = Field(description="yes | no | depends | unknown")
+    compoundable: str = Field(description="yes | no | depends | unknown")
+    triable_by: str = Field(default="", description="The court that tries it")
+    punishment: str = Field(default="", description="As stated in the schedule")
+    warrant_or_summons: str = Field(
+        default="", description="Whether process issues in the first instance"
+    )
+
+
 class CitationOut(BaseModel):
     section: str = Field(description="Section number, e.g. '54' or '561A'")
     source: str = Field(
@@ -127,6 +153,13 @@ class CitationOut(BaseModel):
         description="True only when the excerpt was found in the stored source text"
     )
     source_url: str
+    offence: OffenceOut | None = Field(
+        default=None,
+        description=(
+            "The Schedule II row, for citations to Schedule II. Null for sections "
+            "of an act, which are prose rather than a table."
+        ),
+    )
     amendments: list[AmendmentOut] = Field(
         default_factory=list,
         description=(

@@ -14,16 +14,15 @@ locally* at the end.
 
 ### The Gradio route
 
-The `gradio` SDK does not require the application to *be* a Gradio interface. Spaces runs
-the file named by `app_file` and proxies port 7860, and what serves that port here is this
-project's own FastAPI application — the exported Next.js frontend at `/`, the API under
-`/api`, exactly as the container serves them.
+The `gradio` SDK does not require the application to *be* a Gradio interface — but on
+ZeroGPU it does require Gradio to own the server, because the platform's GPU declaration is
+reported from a patched `gr.Blocks.launch` and nothing else fires it (below). So Gradio
+launches, and this project's own application is put onto the server it builds: the exported
+Next.js frontend at `/`, the API under `/api`, exactly as the container serves them.
 
-This is not a documented pattern; every documented FastAPI-on-Spaces example uses Docker.
-So the entrypoint hedges rather than assumes: a real, working Gradio interface onto the
-same pipeline is mounted at `/gradio/`. If the runtime looks for a Gradio app it finds one,
-and if static serving misbehaves that interface still answers with the same retrieval, the
-same citations and the same verification.
+Gradio's own interface stays behind those as the fallback. If a deployment ever ships
+without the export, it is what answers at the root — the same retrieval, the same citations,
+the same verification, through a plainer page.
 
 **A Gradio Space has no build step**, so everything the Dockerfile did at build time is
 committed by the push script instead: the frontend export, the parsed Schedule II, the
@@ -87,11 +86,19 @@ Space answered `/api/meta` with Gradio's page *after* the API mount had been add
 logged its own startup. `space_app.py` sets `GRADIO_SSR_MODE=false` before importing Gradio,
 by assignment, since the platform sets it true.
 
-**The interface on the Space is Gradio's.** The project's own interface is the Next.js
-application in this repository, shown in the screenshots. Serving it from a Space works —
-disable SSR, replace Gradio's index route, mount the export — but that is a lot of machinery
-riding on two undocumented platform behaviours, for a demo. The pipeline behind both is the
-same, and the API is mounted under `/api` so `POST /api/ask` returns the citations, their
+**The root route has to be taken, not asked for.** Gradio registers `/` while it builds its
+FastAPI app and Starlette matches routes in the order they appear, so the frontend's routes
+are inserted in front of Gradio's rather than appended after them. Appended, they are
+shadowed: the Space serves Gradio's page while holding the exported one, and looks entirely
+healthy doing it.
+
+Relocating Gradio's page under a prefix was tried instead, and rejected. Gradio derives the
+URL its client fetches from the request, and that derivation reads `x-forwarded-host` when
+one is present — so behind a Space's proxy the prefix is dropped and the page works, while
+run locally the prefix is kept and every asset 404s. A page that only works deployed is the
+failure this file has already paid for twice.
+
+The API is mounted under `/api` either way, so `POST /api/ask` returns the citations, their
 verification status and the amendments behind them as JSON.
 
 ### Dependencies
