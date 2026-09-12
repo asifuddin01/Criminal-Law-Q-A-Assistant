@@ -67,6 +67,23 @@ an allocation it did not need.
 The import is optional, so the same file still runs locally where the `spaces` package does
 not exist.
 
+**Declaring the function is not enough — Gradio has to own the server.** The `spaces`
+package reports a Space's GPU functions to the platform from a monkey-patched
+`gr.Blocks.launch`: `spaces/zero/__init__.py` registers it with `gradio.one_launch(startup)`.
+Nothing else fires that report. A Space that runs its own uvicorn never sends it, and the
+platform stops it with the same `No @spaces.GPU function detected during startup` however
+many decorated functions the code actually has.
+
+So `space_app.py` calls `fallback.launch(prevent_thread_lock=True)` and mounts this
+application onto the server Gradio creates: the API as a sub-application under `/api`, and
+the exported frontend at `/`, replacing Gradio's own index page. Gradio's internals — assets,
+theme, queue — are left alone.
+
+The API is **mounted**, not included with `include_router`. Modern FastAPI's
+`include_router` appends a lazy marker resolved when the app builds its route table, and by
+that point Gradio has already launched and built it: the routes are added and never appear.
+A mount is resolved per request, so it works on an app that is already serving.
+
 A Space created on ZeroGPU cannot always be downgraded to CPU basic afterwards: Hugging Face
 treats that as a downgrade and may require PRO. Choosing the hardware at creation avoids the
 question entirely.

@@ -47,18 +47,18 @@ os.environ.setdefault(
 )
 
 import gradio as gr  # noqa: E402
-import uvicorn  # noqa: E402
 
 try:  # Present on a Space, absent when this file is run locally.
     import spaces  # noqa: E402
 except ModuleNotFoundError:
     spaces = None
-from starlette.responses import RedirectResponse  # noqa: E402
+from fastapi import FastAPI  # noqa: E402
+from fastapi.staticfiles import StaticFiles  # noqa: E402
 
+from app.api.routes import router as api_router  # noqa: E402
 from app.legal import DISCLAIMER  # noqa: E402
-from app.main import app as api  # noqa: E402
 from app.qa.validation import validate  # noqa: E402
-from app.services import get_corpora, get_qa, get_schedule  # noqa: E402
+from app.services import get_corpora, get_qa, get_schedule, warm  # noqa: E402
 
 
 async def answer_question(question: str) -> str:
@@ -135,25 +135,60 @@ with gr.Blocks(title="Criminal Law Q&A — Bangladesh") as fallback:
     gr.Button("Ask", variant="primary").click(answer_question, box, out)
     box.submit(answer_question, box, out)
 
-application = gr.mount_gradio_app(api, fallback, path="/gradio")
+def _serve() -> None:
+    """Start the server, with Gradio owning it.
 
+    This is not a stylistic choice. On ZeroGPU the `spaces` package reports the
+    Space's GPU functions to the platform from a monkey-patched
+    `gr.Blocks.launch` — `spaces/zero/__init__.py` registers it with
+    `gradio.one_launch(startup)`. Nothing else triggers that report, so a Space
+    that runs its own uvicorn never sends it and the platform stops the Space
+    with `No @spaces.GPU function detected during startup`, however many
+    decorated functions it actually has. Declaring one is necessary; calling
+    `launch()` is what makes it count.
 
-# A Mount at "/gradio" answers "/gradio/" and redirects "/gradio" to it — but the
-# static export below is mounted at "/" and would swallow that redirect, so the
-# slash-less path is handled explicitly.
-@application.get("/gradio", include_in_schema=False)
-async def _gradio_slash() -> RedirectResponse:
-    return RedirectResponse("/gradio/")
+    So Gradio binds the port, and this application is mounted onto the server it
+    created: the API under `/api`, and the exported frontend at `/`, which
+    replaces Gradio's own index page. Gradio's internals — its assets, its
+    queue — are left where they are, so the fallback interface keeps working.
+    """
+    fallback.launch(
+        server_name="0.0.0.0",
+        server_port=int(os.environ.get("PORT", 7860)),
+        prevent_thread_lock=True,
+        quiet=True,
+    )
 
+    server = fallback.app
 
-# The exported frontend matches every path. Starlette tries routes in order, so
-# it has to be considered last; anything mounted after it is unreachable while
-# still looking mounted.
-_routes = application.router.routes
-for _index, _route in enumerate(_routes):
-    if getattr(_route, "name", None) == "web":
-        _routes.append(_routes.pop(_index))
-        break
+    # The corpus and index, which the API's own lifespan would normally warm.
+    for component, state in warm().items():
+        print(f"{component}: {state}", flush=True)
+
+    # Mounted as a sub-application rather than included as a router. FastAPI's
+    # `include_router` appends a lazy marker that is resolved when the app builds
+    # its route table, and by this point Gradio has already launched and built
+    # it — the routes are added and never appear. A mount is resolved per
+    # request, so it works on an app that is already serving.
+    api = FastAPI(docs_url=None, redoc_url=None, openapi_url=None)
+    api.include_router(api_router)
+    server.mount("/api", api)
+
+    static = ROOT / "backend" / "static"
+    if (static / "index.html").exists():
+        # Gradio serves its own page at "/". The exported frontend is this
+        # application's interface, so it takes the root and Gradio's index goes.
+        server.router.routes = [
+            route
+            for route in server.router.routes
+            if getattr(route, "path", None) != "/"
+        ]
+        # Mounted last: it matches every path, so anything after it is
+        # unreachable — including every route added above.
+        server.mount("/", StaticFiles(directory=static, html=True), name="web")
+
+    fallback.block_thread()
+
 
 if __name__ == "__main__":
-    uvicorn.run(application, host="0.0.0.0", port=int(os.environ.get("PORT", 7860)))
+    _serve()
