@@ -15,6 +15,7 @@
  */
 import { chromium } from "playwright";
 import { mkdir, rename, readdir, rm, stat } from "node:fs/promises";
+import { rmSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { dirname, join } from "node:path";
 
@@ -69,6 +70,14 @@ async function ask(page, question) {
 
 await rm(RAW, { recursive: true, force: true });
 await mkdir(OUT, { recursive: true });
+
+// A failed recording must not leave its scratch directory behind: the first
+// hosted attempt errored on a spent quota and the raw frames were committed.
+process.on("exit", () => {
+  try {
+    rmSync(RAW, { recursive: true, force: true });
+  } catch {}
+});
 
 const browser = await chromium.launch({ channel: "chrome" });
 const context = await browser.newContext({
