@@ -210,10 +210,16 @@ container on one port. Steps, limits and the local `docker run`:
 
 The API key goes in the host's own secrets page, never in the repository.
 
-The image is built and verified for `linux/amd64` — the platform Spaces runs. Cold start is
-21 seconds, down from 59 before Schedule II was precomputed at build time: 81% of the
-original startup was re-parsing a 161-page PDF that never changes, on every wake of a Space
-that sleeps when idle.
+Docker Spaces are gated behind a paid tier on some accounts, so the Space runs under the
+`gradio` SDK — which serves this project's own FastAPI application rather than a Gradio
+interface, keeping the real frontend. A working Gradio interface onto the same pipeline is
+mounted at `/gradio/` as a hedge, because running FastAPI that way is not a documented
+pattern. The `Dockerfile` is still there and is still the better option wherever Docker
+Spaces are available; it is built and verified for `linux/amd64`.
+
+Cold start is 21 seconds, down from 59 before Schedule II was precomputed ahead of time:
+81% of the original startup was re-parsing a 161-page PDF that never changes, on every wake
+of a Space that sleeps when idle.
 
 ## Data ingestion and update
 

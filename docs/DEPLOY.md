@@ -6,14 +6,37 @@ port, and no cross-origin configuration to get wrong somewhere nobody can debug 
 
 ## Hugging Face Spaces
 
-**Why this host.** Free, no card, and Docker-based — which matters because this is a
-Python API and a Next.js frontend, and a Node-only host would need the backend somewhere
-else and a CORS setup between them.
+**Docker Spaces are gated behind a paid tier on some accounts.** Check the SDK picker at
+[huggingface.co/new-space](https://huggingface.co/new-space): if **Docker** shows a
+`Paid` badge, use the Gradio route below. The `Dockerfile` in this repository still works
+and is still the better deployment where Docker is available — see *Running the container
+locally* at the end.
+
+### The Gradio route
+
+The `gradio` SDK does not require the application to *be* a Gradio interface. Spaces runs
+the file named by `app_file` and proxies port 7860, and what serves that port here is this
+project's own FastAPI application — the exported Next.js frontend at `/`, the API under
+`/api`, exactly as the container serves them.
+
+This is not a documented pattern; every documented FastAPI-on-Spaces example uses Docker.
+So the entrypoint hedges rather than assumes: a real, working Gradio interface onto the
+same pipeline is mounted at `/gradio/`. If the runtime looks for a Gradio app it finds one,
+and if static serving misbehaves that interface still answers with the same retrieval, the
+same citations and the same verification.
+
+**A Gradio Space has no build step**, so everything the Dockerfile did at build time is
+committed by the push script instead: the frontend export, the parsed Schedule II, the
+corpus and the index. The embedding model is the exception — it is fetched by
+`preload_from_hub` in the Space README. fastembed uses the same on-disk layout as the
+Hugging Face hub cache (`models--<org>--<name>/snapshots/…`), so a preloaded copy is found
+rather than re-downloaded, which is what keeps a 240 MB fetch off the first question.
 
 ### 1. Create the Space
 
-At [huggingface.co/new-space](https://huggingface.co/new-space): pick **Docker** → **Blank**,
-and note the name. Leave it public.
+At [huggingface.co/new-space](https://huggingface.co/new-space): **Gradio** SDK, blank
+template, **CPU basic** hardware, public. Leave the license blank unless you have chosen
+one.
 
 ### 2. Push
 
@@ -21,39 +44,26 @@ and note the name. Leave it public.
 ./deploy/push-to-space.sh <hf-username> <space-name>
 ```
 
-The corpus under `data/` is gitignored — it is fetched, not authored — so the script
-force-adds the two directories the image needs onto a throwaway branch, along with a
-README whose frontmatter tells Hugging Face to build the Dockerfile. `main` and the
-working tree are untouched.
+It exports the frontend, precomputes the Schedule II parse, assembles the Space's own
+`README.md`, `space_app.py`, `requirements.txt` and `packages.txt`, force-adds the
+artefacts `main` does not track, pushes to a throwaway branch, and restores your working
+tree. `main` is untouched.
 
-What ships: `data/raw` (6.4 MB, the act HTML and the Schedule II PDF) and
-`data/index/legal_aware_schedule` (3.7 MB). Both stay under the 10 MB per-file limit, so
-no LFS. The raw corpus is needed at runtime, not just to build the index — citation
-validation checks quoted text against the act's own words.
+Git will ask for credentials: the username is your Hugging Face username and the password
+is a **write** access token from
+[huggingface.co/settings/tokens](https://huggingface.co/settings/tokens). A read token
+cannot push.
+
+The entrypoint is `space_app.py`, not `app.py`, deliberately: a module named `app` at the
+repository root shadows the `app` package under `backend/`, and every `import app.x` would
+resolve to the wrong file.
 
 ### 3. Add the key
 
 In the Space's **Settings → Variables and secrets**, add a secret named `GROQ_API_KEY`.
 
-Do this in that page, not in the repository. A key in a commit is a key you have to
-rotate, and it stays in the history after you delete it.
-
-The first build takes a few minutes. Two of its steps exist to move work out of startup:
-
-| Build step | Cost at build | What it would have cost otherwise |
-|---|---|---|
-| Parse Schedule II | 46 s, once | 46 s on **every** cold start |
-| Pull the embedding model | 47 s, once | a 120 MB download on every cold start |
-
-Measured on the built image, `linux/amd64`:
-
-- **cold start to first page: 21 s** — it was 59 s before the schedule was precomputed,
-  81% of which was re-parsing a 161-page PDF that never changes
-- layers: dependencies 674 MB, embedding model 261 MB, tesseract 105 MB, corpus and index
-  15 MB
-
-A Space sleeps when idle, so that 21 s is what a returning visitor waits — which is why it
-was worth measuring rather than assuming.
+Do this there, not in the repository. A key in a commit is a key you have to rotate, and it
+stays in the history after you delete it.
 
 ## What the deployment cannot do
 
@@ -73,15 +83,17 @@ deployment.
 
 ## Verified locally
 
-The image was built for `linux/amd64` — the platform Spaces runs — and exercised before
-being documented as working:
+The Gradio entrypoint was run the way Spaces runs it before being documented as working:
 
-- `uv sync --frozen` installs 66 packages from the lock on amd64, no resolution
-- `/`, `/api/health` and `/api/meta` all answer
-- `POST /api/ask` with *"Is theft a bailable offence?"* returns a grounded answer citing
-  the Schedule II row for Penal Code section 379, quote verified
-- the page loads, groups citations by section, and shows section 54's amendment history
-  with a link to the amending act, with no console errors
+- `/`, `/api/meta`, `/gradio` and `/gradio/` all answer 200
+- `POST /api/ask` reaches the model with no embedding-model download — the preloaded
+  hub-layout cache is found, which is the whole point of `preload_from_hub`
+- the spent-quota path was exercised for real and returned the intended 503, naming what
+  ran out and when it frees up, rather than a 502 with a provider stack trace
+- the Gradio fallback at `/gradio/` renders the disclaimer, accepts a question and runs the
+  same pipeline
+
+The container was separately built for `linux/amd64` and exercised the same way; see below.
 
 ## Running the container locally
 

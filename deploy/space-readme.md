@@ -3,9 +3,12 @@ title: Criminal Law Q&A — Bangladesh
 emoji: ⚖️
 colorFrom: indigo
 colorTo: gray
-sdk: docker
-app_port: 7860
+sdk: gradio
+app_file: space_app.py
+python_version: "3.12"
 pinned: false
+preload_from_hub:
+  - qdrant/paraphrase-multilingual-MiniLM-L12-v2-onnx-Q
 short_description: Source-grounded Q&A over the Code of Criminal Procedure, 1898
 ---
 
@@ -34,6 +37,18 @@ official text published by the Ministry of Law, Justice and Parliamentary Affair
 
 Speech, image (OCR) and document upload are wired to the same pipeline: every modality
 is normalised to text at the API boundary, so one evaluation covers all of them.
+
+## How this is put together
+
+Docker Spaces are not on this account's tier, so it runs under the `gradio` SDK — which
+does not mean it *is* a Gradio interface. Spaces runs `app.py` and proxies port 7860, and
+what serves that port is the project's own FastAPI application: the exported Next.js
+frontend at `/`, the API under `/api`. A small Gradio block sits at `/gradio` so the
+runtime finds the app its SDK expects.
+
+Everything a Dockerfile would have done at build time is committed instead, because this
+SDK has no build step: the frontend export, the parsed Schedule II, the corpus and the
+vector index.
 
 ## Limits of this deployment
 

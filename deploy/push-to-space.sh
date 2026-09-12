@@ -3,14 +3,15 @@
 #
 #   ./deploy/push-to-space.sh <hf-username> <space-name>
 #
-# The Space needs two things this repository does not track: the corpus under
-# data/, which is gitignored because it is fetched rather than authored, and a
-# README whose frontmatter tells Hugging Face to build the Dockerfile. Both are
-# assembled on a throwaway branch so the working tree and main are untouched.
+# The Space runs under the `gradio` SDK, which has no build step — so everything
+# a Dockerfile would have produced during a build has to be produced here and
+# committed: the exported frontend, the parsed Schedule II, the corpus and the
+# index. All of it goes onto a throwaway branch, so the working tree and main are
+# untouched.
 #
 # The API key is NOT handled here. Set it in the Space's own settings, under
 # Settings -> Variables and secrets, as GROQ_API_KEY. A key committed to a repo
-# is a key you have to rotate.
+# is a key you have to rotate, and it stays in the history after you delete it.
 set -euo pipefail
 
 if [ $# -ne 2 ]; then
@@ -41,21 +42,31 @@ STARTING_BRANCH="$(git rev-parse --abbrev-ref HEAD)"
 cleanup() {
     git checkout --quiet "$STARTING_BRANCH" 2>/dev/null || true
     git branch -D "$BRANCH" >/dev/null 2>&1 || true
+    rm -rf "$ROOT/backend/static"
 }
 trap cleanup EXIT
+
+echo "==> exporting the frontend"
+(cd frontend && npm run build >/dev/null)
+rm -rf backend/static
+cp -R frontend/out backend/static
+
+echo "==> precomputing the Schedule II parse"
+# 48 seconds of PDF parsing that would otherwise run on every cold start.
+(cd backend && uv run python -m app.ingest.precompute)
 
 echo "==> preparing $BRANCH"
 git checkout --quiet -b "$BRANCH"
 
-# The corpus and the one index the deployment serves from.
-git add -f data/raw data/index/legal_aware_schedule
-
-# Hugging Face reads the Space configuration from README frontmatter, so the
-# Space gets its own README. The repository's stays as it is on main.
+# What the Space needs at its root.
+cp deploy/space/space_app.py deploy/space/requirements.txt deploy/space/packages.txt .
 cp deploy/space-readme.md README.md
-git add README.md
+git add -f space_app.py requirements.txt packages.txt README.md
 
-git commit --quiet -m "deploy: corpus, index and Space configuration"
+# Built and fetched artefacts, which main does not track.
+git add -f backend/static data/raw data/index/legal_aware_schedule data/parsed
+
+git commit --quiet -m "deploy: application, corpus, index and Space configuration"
 
 echo "==> pushing to $REMOTE"
 git remote remove space 2>/dev/null || true
@@ -68,6 +79,5 @@ echo "  1. open ${REMOTE}/settings"
 echo "  2. under 'Variables and secrets', add a secret named GROQ_API_KEY"
 echo "  3. paste your key there — it is never committed and never leaves that page"
 echo
-echo "The first build takes several minutes; it installs tesseract and bakes the"
-echo "embedding model into the image so the first question is not the slowest."
+echo "The first build installs tesseract and 61 Python packages; several minutes."
 echo "Watch it at ${REMOTE}?logs=build"
