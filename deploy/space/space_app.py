@@ -24,6 +24,7 @@ from __future__ import annotations
 import os
 import pathlib
 import sys
+from functools import wraps
 
 # Named space_app.py, not app.py, on purpose: a module called `app` at the
 # repository root shadows the `app` package under backend/, and every
@@ -135,41 +136,17 @@ with gr.Blocks(title="Criminal Law Q&A — Bangladesh") as fallback:
     gr.Button("Ask", variant="primary").click(answer_question, box, out)
     box.submit(answer_question, box, out)
 
-def _serve() -> None:
-    """Start the server, with Gradio owning it.
+def _mount_application(server: FastAPI) -> None:
+    """Add this application's routes to the FastAPI app Gradio has just built.
 
-    This is not a stylistic choice. On ZeroGPU the `spaces` package reports the
-    Space's GPU functions to the platform from a monkey-patched
-    `gr.Blocks.launch` — `spaces/zero/__init__.py` registers it with
-    `gradio.one_launch(startup)`. Nothing else triggers that report, so a Space
-    that runs its own uvicorn never sends it and the platform stops the Space
-    with `No @spaces.GPU function detected during startup`, however many
-    decorated functions it actually has. Declaring one is necessary; calling
-    `launch()` is what makes it count.
-
-    So Gradio binds the port, and this application is mounted onto the server it
-    created: the API under `/api`, and the exported frontend at `/`, which
-    replaces Gradio's own index page. Gradio's internals — its assets, its
-    queue — are left where they are, so the fallback interface keeps working.
+    The API is **mounted** as a sub-application rather than included with
+    `include_router`. Modern FastAPI's `include_router` appends a lazy marker
+    resolved when the app builds its route table; a mount is resolved per
+    request and so works whenever it is added.
     """
-    fallback.launch(
-        server_name="0.0.0.0",
-        server_port=int(os.environ.get("PORT", 7860)),
-        prevent_thread_lock=True,
-        quiet=True,
-    )
-
-    server = fallback.app
-
-    # The corpus and index, which the API's own lifespan would normally warm.
     for component, state in warm().items():
         print(f"{component}: {state}", flush=True)
 
-    # Mounted as a sub-application rather than included as a router. FastAPI's
-    # `include_router` appends a lazy marker that is resolved when the app builds
-    # its route table, and by this point Gradio has already launched and built
-    # it — the routes are added and never appear. A mount is resolved per
-    # request, so it works on an app that is already serving.
     api = FastAPI(docs_url=None, redoc_url=None, openapi_url=None)
     api.include_router(api_router)
     server.mount("/api", api)
@@ -183,12 +160,35 @@ def _serve() -> None:
             for route in server.router.routes
             if getattr(route, "path", None) != "/"
         ]
-        # Mounted last: it matches every path, so anything after it is
-        # unreachable — including every route added above.
+        # Mounted last: it matches every path, so anything added after it would
+        # be unreachable — the API mount above included.
         server.mount("/", StaticFiles(directory=static, html=True), name="web")
 
-    fallback.block_thread()
+
+# Gradio builds its FastAPI app inside `launch()`, and on a Space it is the
+# platform that calls `launch()` — this file is imported, not executed, so a
+# `__main__` block never runs. That was not a guess in the end: importing the
+# module and launching it the way the platform does reproduces exactly what the
+# deployed Space served, Gradio's own index page at every path and no API.
+#
+# Hooking `create_app` is therefore the one point where these routes can reach
+# the server that will actually serve them, whoever calls launch.
+_original_create_app = gr.routes.App.create_app
+
+
+@wraps(_original_create_app)
+def _create_app(*args, **kwargs):
+    server = _original_create_app(*args, **kwargs)
+    _mount_application(server)
+    return server
+
+
+gr.routes.App.create_app = staticmethod(_create_app)
 
 
 if __name__ == "__main__":
-    _serve()
+    # Local runs only; on a Space the platform launches the Blocks above.
+    fallback.launch(
+        server_name="0.0.0.0",
+        server_port=int(os.environ.get("PORT", 7860)),
+    )

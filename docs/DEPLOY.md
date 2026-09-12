@@ -74,10 +74,18 @@ Nothing else fires that report. A Space that runs its own uvicorn never sends it
 platform stops it with the same `No @spaces.GPU function detected during startup` however
 many decorated functions the code actually has.
 
-So `space_app.py` calls `fallback.launch(prevent_thread_lock=True)` and mounts this
-application onto the server Gradio creates: the API as a sub-application under `/api`, and
-the exported frontend at `/`, replacing Gradio's own index page. Gradio's internals — assets,
-theme, queue — are left alone.
+**And the platform, not this file, calls `launch()`.** Spaces *imports* the module named by
+`app_file` and launches the Blocks it finds; a `__main__` block never runs. The first
+deployment that reached RUNNING proved it by serving Gradio's own index page at every path,
+including `/api/meta` — the mounting code sat under `__main__` and had never executed.
+Importing the module locally and launching it the same way reproduces that exactly, which is
+how it was diagnosed rather than guessed.
+
+So the routes are attached where Gradio builds its app: `space_app.py` wraps
+`gradio.routes.App.create_app`, and adds the API as a sub-application under `/api` and the
+exported frontend at `/`, replacing Gradio's index. Gradio's internals — assets, theme,
+queue — are left alone, so the fallback interface still works. This happens whoever calls
+launch, which is the point.
 
 The API is **mounted**, not included with `include_router`. Modern FastAPI's
 `include_router` appends a lazy marker resolved when the app builds its route table, and by
