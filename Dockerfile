@@ -54,12 +54,20 @@ COPY --chown=user --from=web /build/out ./backend/static
 COPY --chown=user data/raw ./data/raw
 COPY --chown=user data/index/legal_aware_schedule ./data/index/legal_aware_schedule
 
+# Parse Schedule II once, here, rather than on every cold start. The PDF is 161
+# pages and parsing it takes 48 seconds — 81% of this container's startup, paid
+# again every time a sleeping deployment wakes, before it serves its first page.
+# The parse is deterministic and the PDF is fixed, so the result is computed at
+# build time and read back in milliseconds. The PDF still ships: it is the
+# provenance for what the parsed file contains.
+WORKDIR /home/user/app/backend
+RUN python -m app.ingest.precompute
+
 # Pull the embedding model into the image, into the directory the application
 # reads at runtime. fastembed's own default is under the system temp path, which
 # a host is free to hand back empty on every cold start — so the location is set
 # explicitly on both sides rather than left to a default that happens to work on
 # a laptop.
-WORKDIR /home/user/app/backend
 RUN python -c "from app.retrieval.embeddings import _model, DEFAULT_MODEL; _model(DEFAULT_MODEL)" \
     && test -d "$EMBEDDING_CACHE_DIR" 
 

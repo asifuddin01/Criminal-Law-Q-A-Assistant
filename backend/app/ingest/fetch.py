@@ -22,6 +22,7 @@ USER_AGENT = "criminal-law-qa/0.1 (academic assessment; contact via repository)"
 
 REPO_ROOT = pathlib.Path(__file__).resolve().parents[3]
 RAW_DIR = REPO_ROOT / "data" / "raw"
+PARSED_DIR = REPO_ROOT / "data" / "parsed"
 
 
 # Schedule II is published separately from the act text, as a PDF. It is not
@@ -131,3 +132,14 @@ def main(argv: list[str] | None = None) -> int:
 
 if __name__ == "__main__":
     sys.exit(main())
+
+
+def parsed_schedule_path() -> pathlib.Path:
+    """Where the parsed Schedule II is cached.
+
+    Parsing the 161-page PDF takes 48 seconds, which is 81% of a cold start and
+    is paid again every time a sleeping deployment wakes. The PDF is a fixed
+    input and the parse is deterministic, so the result is computed once — at
+    image build time — and read back in milliseconds.
+    """
+    return PARSED_DIR / "schedule-ii.json"

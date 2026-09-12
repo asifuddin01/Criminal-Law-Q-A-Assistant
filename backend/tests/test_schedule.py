@@ -133,3 +133,62 @@ def test_conditional_entries_are_recorded_as_depends_not_no(entries):
 def test_almost_every_entry_carries_offence_text_and_a_chapter(entries):
     assert sum(1 for e in entries if not e.offence.strip()) <= 2
     assert sum(1 for e in entries if e.chapter) >= len(entries) - 5
+
+
+# --- the parsed cache ---------------------------------------------------------
+
+
+def test_the_parsed_cache_round_trips_exactly(tmp_path):
+    """A cache that differs from the parse is worse than no cache.
+
+    Startup reads this instead of parsing the PDF, so anything it loses is lost
+    silently and for every question thereafter.
+    """
+    from app.ingest import dump_entries, load_entries
+    from app.ingest.models import ScheduleEntry, Triable
+
+    entries = [
+        ScheduleEntry(
+            penal_code_section="379",
+            offence="Theft",
+            cognizable=Triable.YES,
+            warrant_or_summons="Warrant",
+            bailable=Triable.NO,
+            compoundable=Triable.DEPENDS,
+            punishment="Imprisonment for 3 years",
+            triable_by="Judicial Magistrate",
+            chapter="XVII",
+            page=42,
+        ),
+        ScheduleEntry(
+            penal_code_section="511",
+            offence="Attempt — অপরাধ",
+            cognizable=Triable.UNKNOWN,
+            bailable=Triable.DEPENDS,
+        ),
+    ]
+
+    path = dump_entries(entries, tmp_path / "schedule.json")
+    loaded = load_entries(path)
+
+    assert [e.model_dump() for e in loaded] == [e.model_dump() for e in entries]
+    # The tri-state columns survive as themselves, not as booleans: "depends" is
+    # a real answer in this schedule and collapsing it would be a wrong one.
+    assert loaded[0].compoundable is Triable.DEPENDS
+    assert loaded[1].cognizable is Triable.UNKNOWN
+    # Bangla in an offence name survives the round trip.
+    assert "অপরাধ" in loaded[1].offence
+
+
+@pytest.mark.skipif(not SCHEDULE.exists(), reason="Schedule II not fetched")
+def test_the_cache_matches_a_fresh_parse_of_the_real_pdf():
+    """Checked against the actual 161-page source, not a fixture."""
+    from app.ingest import load_entries, parsed_schedule_path
+
+    if not parsed_schedule_path().exists():
+        pytest.skip("cache not built; run: python -m app.ingest.precompute")
+
+    cached = load_entries(parsed_schedule_path())
+    fresh = parse_schedule(SCHEDULE)
+
+    assert [e.model_dump() for e in cached] == [e.model_dump() for e in fresh]

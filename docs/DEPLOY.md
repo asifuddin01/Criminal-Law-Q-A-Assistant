@@ -38,9 +38,22 @@ In the Space's **Settings → Variables and secrets**, add a secret named `GROQ_
 Do this in that page, not in the repository. A key in a commit is a key you have to
 rotate, and it stays in the history after you delete it.
 
-The first build takes several minutes: it installs tesseract for the image-input path and
-pulls the embedding model into the image, so the first question a visitor asks is not the
-slowest one they will ever see.
+The first build takes a few minutes. Two of its steps exist to move work out of startup:
+
+| Build step | Cost at build | What it would have cost otherwise |
+|---|---|---|
+| Parse Schedule II | 46 s, once | 46 s on **every** cold start |
+| Pull the embedding model | 47 s, once | a 120 MB download on every cold start |
+
+Measured on the built image, `linux/amd64`:
+
+- **cold start to first page: 21 s** — it was 59 s before the schedule was precomputed,
+  81% of which was re-parsing a 161-page PDF that never changes
+- layers: dependencies 674 MB, embedding model 261 MB, tesseract 105 MB, corpus and index
+  15 MB
+
+A Space sleeps when idle, so that 21 s is what a returning visitor waits — which is why it
+was worth measuring rather than assuming.
 
 ## What the deployment cannot do
 
@@ -57,6 +70,18 @@ wake.
 run it on; a free Space has neither. The fallback exists for local development, and the
 evaluation uses it as a second measurement track — it is not a redundancy for this
 deployment.
+
+## Verified locally
+
+The image was built for `linux/amd64` — the platform Spaces runs — and exercised before
+being documented as working:
+
+- `uv sync --frozen` installs 66 packages from the lock on amd64, no resolution
+- `/`, `/api/health` and `/api/meta` all answer
+- `POST /api/ask` with *"Is theft a bailable offence?"* returns a grounded answer citing
+  the Schedule II row for Penal Code section 379, quote verified
+- the page loads, groups citations by section, and shows section 54's amendment history
+  with a link to the amending act, with no console errors
 
 ## Running the container locally
 

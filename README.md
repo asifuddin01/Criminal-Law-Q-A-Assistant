@@ -210,6 +210,11 @@ container on one port. Steps, limits and the local `docker run`:
 
 The API key goes in the host's own secrets page, never in the repository.
 
+The image is built and verified for `linux/amd64` — the platform Spaces runs. Cold start is
+21 seconds, down from 59 before Schedule II was precomputed at build time: 81% of the
+original startup was re-parsing a 161-page PDF that never changes, on every wake of a Space
+that sleeps when idle.
+
 ## Data ingestion and update
 
 Sources, structure and provenance: **[DATA_SOURCE.md](DATA_SOURCE.md)**.

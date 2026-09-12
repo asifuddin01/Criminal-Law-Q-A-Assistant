@@ -15,8 +15,10 @@ from app.ingest import (
     Act,
     ScheduleEntry,
     cache_path,
+    load_entries,
     parse_act,
     parse_schedule,
+    parsed_schedule_path,
     schedule_path,
 )
 from app.llm import get_provider
@@ -81,6 +83,13 @@ def get_corpora() -> dict[str, Act]:
 
 @lru_cache(maxsize=1)
 def get_schedule() -> list[ScheduleEntry]:
+    # The parsed cache first. Parsing the PDF takes 48 seconds and produces the
+    # same 376 rows every time; a deployment that sleeps would pay it on every
+    # wake, before serving its first page.
+    parsed = parsed_schedule_path()
+    if parsed.exists():
+        return load_entries(parsed)
+
     source = schedule_path()
     if not source.exists():
         raise CorpusUnavailable(

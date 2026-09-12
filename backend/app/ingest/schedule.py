@@ -23,6 +23,8 @@ nothing; resolved wrongly, it says something false about a different offence.
 
 from __future__ import annotations
 
+import json
+import pathlib
 import re
 from dataclasses import dataclass, field
 
@@ -337,3 +339,21 @@ class ScheduleCorpus:
             entry.punishment,
         ]
         return _ScheduleSection(text=" ".join(p for p in parts if p.strip()))
+
+
+def dump_entries(entries: list[ScheduleEntry], path: pathlib.Path) -> pathlib.Path:
+    """Write parsed entries to JSON, so the PDF is parsed once rather than per boot."""
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(
+        json.dumps([e.model_dump(mode="json") for e in entries], ensure_ascii=False),
+        encoding="utf-8",
+    )
+    return path
+
+
+def load_entries(path: pathlib.Path) -> list[ScheduleEntry]:
+    """Read entries written by `dump_entries`."""
+    return [
+        ScheduleEntry.model_validate(row)
+        for row in json.loads(path.read_text(encoding="utf-8"))
+    ]

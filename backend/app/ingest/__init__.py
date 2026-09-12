@@ -4,6 +4,7 @@ from app.ingest.fetch import (
     cache_path,
     fetch_act,
     fetch_schedule,
+    parsed_schedule_path,
     schedule_path,
 )
 from app.ingest.models import (
@@ -16,7 +17,7 @@ from app.ingest.models import (
     SectionUnit,
     Triable,
 )
-from app.ingest.schedule import parse_schedule
+from app.ingest.schedule import dump_entries, load_entries, parse_schedule
 
 __all__ = [
     "Act",
@@ -34,5 +35,8 @@ __all__ = [
     "fetch_schedule",
     "parse_act",
     "parse_schedule",
+    "dump_entries",
+    "load_entries",
+    "parsed_schedule_path",
     "schedule_path",
 ]

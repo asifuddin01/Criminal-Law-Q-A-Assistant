@@ -25,6 +25,10 @@ data/raw/
 data/interim/
 data/index/
 data/cache/
+# Derived from the Schedule II PDF by `python -m app.ingest.precompute`, the same
+# way the other data/ directories are derived. The container regenerates it at
+# build time; locally, run that command once to cut ~25s off every start.
+data/parsed/
 *.sqlite
 *.duckdb
 
