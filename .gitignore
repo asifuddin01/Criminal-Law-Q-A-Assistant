@@ -44,3 +44,6 @@ eval/runs/scratch/
 # Next.js build output
 frontend/.next/
 frontend/next-env.d.ts
+
+# Built frontend, copied in by the Docker build. Not a source artefact.
+backend/static/

@@ -57,6 +57,13 @@ class Settings(BaseSettings):
 
     request_timeout_seconds: float = 60.0
 
+    # Where the embedding model is stored. fastembed defaults to a directory
+    # under the system temp path, which is fine on a laptop and wrong in a
+    # container: a host that gives the process a fresh /tmp re-downloads 120 MB
+    # of model on every cold start, and the first question anyone asks pays for
+    # it. Empty keeps fastembed's own default.
+    embedding_cache_dir: str = ""
+
     # A local model on CPU is not a hosted one on accelerators, and a single
     # timeout for both measures the machine rather than the system. At 60s a
     # full evaluation sweep lost five questions to timeouts, four of them

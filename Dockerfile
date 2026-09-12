@@ -35,8 +35,8 @@ USER user
 ENV HOME=/home/user \
     PATH=/home/user/.local/bin:/home/user/app/backend/.venv/bin:$PATH \
     PYTHONUNBUFFERED=1 \
-    HF_HOME=/home/user/.cache/huggingface \
-    UV_LINK_MODE=copy
+    UV_LINK_MODE=copy \
+    EMBEDDING_CACHE_DIR=/home/user/.cache/fastembed
 WORKDIR /home/user/app
 
 RUN pip install --no-cache-dir --user uv
@@ -54,11 +54,16 @@ COPY --chown=user --from=web /build/out ./backend/static
 COPY --chown=user data/raw ./data/raw
 COPY --chown=user data/index/legal_aware_schedule ./data/index/legal_aware_schedule
 
-# Pull the embedding model into the image. It is downloaded on first use
-# otherwise, which makes the first question a reviewer asks the slowest one they
-# will ever see.
-RUN python -c "from fastembed import TextEmbedding; \
-TextEmbedding(model_name='sentence-transformers/paraphrase-multilingual-MiniLM-L12-v2')"
+# Pull the embedding model into the image, into the directory the application
+# reads at runtime. fastembed's own default is under the system temp path, which
+# a host is free to hand back empty on every cold start — so the location is set
+# explicitly on both sides rather than left to a default that happens to work on
+# a laptop.
+WORKDIR /home/user/app/backend
+RUN python -c "from app.retrieval.embeddings import _model, DEFAULT_MODEL; _model(DEFAULT_MODEL)" \
+    && test -d "$EMBEDDING_CACHE_DIR" 
+
+WORKDIR /home/user/app
 
 EXPOSE 7860
 CMD ["python", "-m", "uvicorn", "app.main:app", \

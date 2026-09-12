@@ -143,3 +143,37 @@ def test_an_ordinary_provider_failure_is_still_a_502():
 
     assert other.status_code == 502
     assert "connection reset" in other.detail
+
+
+def test_the_embedding_cache_location_can_be_set(monkeypatch, tmp_path):
+    """Regression, found while writing the container and before it shipped.
+
+    fastembed caches the model under the system temp path when nothing says
+    otherwise. That is invisible on a laptop and wrong in a container: a host
+    that hands the process a fresh /tmp re-downloads 120 MB on every cold start,
+    and the first question anyone asks pays for it. The image warms the cache at
+    build time, so both sides have to name the same directory.
+    """
+    from app.config import Settings, get_settings
+
+    monkeypatch.setenv("EMBEDDING_CACHE_DIR", str(tmp_path / "models"))
+    get_settings.cache_clear()
+    try:
+        assert get_settings().embedding_cache_dir == str(tmp_path / "models")
+    finally:
+        get_settings.cache_clear()
+
+    # Unset, fastembed keeps its own default rather than being handed "".
+    monkeypatch.delenv("EMBEDDING_CACHE_DIR")
+    assert Settings(_env_file=None).embedding_cache_dir == ""
+
+
+def test_settings_load_with_no_environment_at_all():
+    """The image warms the model at build time, where no credential exists.
+
+    A required setting without a default would fail the build with an error about
+    a missing API key, in a step that does not use one.
+    """
+    from app.config import Settings
+
+    assert Settings(_env_file=None).app_name

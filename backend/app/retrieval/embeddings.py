@@ -11,9 +11,12 @@ main thread, and the throughput gain at this corpus size would not be worth the 
 
 from __future__ import annotations
 
+import pathlib
 from functools import lru_cache
 
 import numpy as np
+
+from app.config import get_settings
 
 # 384-dimensional, ~0.22 GB, covers Bengali alongside English — the requirement from
 # ADR 0003 that questions may be asked in Bangla against English statutory text.
@@ -25,9 +28,21 @@ EMBEDDING_BATCH = 32
 
 @lru_cache(maxsize=2)
 def _model(name: str):
+    """Load the embedding model, from an explicit cache directory when set.
+
+    fastembed's default is `<system temp>/fastembed_cache`. That is invisible
+    until it is a problem: in a container whose /tmp is not part of the image, or
+    is a tmpfs cleared between starts, the model is fetched again on every cold
+    start and the first question of the day is the slowest one anyone sees.
+    Deployments set `EMBEDDING_CACHE_DIR` to somewhere that persists, and the
+    image warms it at build time.
+    """
     from fastembed import TextEmbedding
 
-    return TextEmbedding(model_name=name)
+    cache_dir = get_settings().embedding_cache_dir or None
+    if cache_dir:
+        pathlib.Path(cache_dir).mkdir(parents=True, exist_ok=True)
+    return TextEmbedding(model_name=name, cache_dir=cache_dir)
 
 
 def embed(texts: list[str], *, model_name: str = DEFAULT_MODEL) -> np.ndarray:
