@@ -58,10 +58,10 @@ const SHOTS = [
     caption:
       "Every citation carries how and when the section changed, and under which act",
     async run(page) {
-      await askExample(page, "How long can police detain");
-      // Section 167 has six amendment records, which is the point of the shot:
-      // current wording alone would not tell a reader that sub-section (2) was
-      // substituted with effect from a date in 2025.
+      await askExample(page, "When may a police officer arrest");
+      // Section 54 was substituted with effect from 10 August 2025, which is the
+      // point of the shot: the current wording alone does not tell a reader that,
+      // and whether it governs a matter depends on when the matter arose.
       const histories = page.locator("details.amend > summary");
       const count = await histories.count();
       for (let i = 0; i < count; i += 1) {

@@ -6,6 +6,7 @@ import {
   API_URL,
   type Amendment,
   type AskResponse,
+  type Citation,
   type Meta,
   type ImageText,
   type Transcription,
@@ -37,6 +38,55 @@ function amendmentSummary(amendments: Amendment[]): string {
   return latest
     ? `${label} — most recently in force from ${formatDate(latest.effective_from!)}`
     : `${label} — no effective date stated`;
+}
+
+/**
+ * One card per cited section, not per quotation.
+ *
+ * A long section is split into several chunks, so the model can verify two or
+ * three separate excerpts from the same provision. Rendered one card each, the
+ * list repeats the section heading, the part and chapter path, the bdlaws link
+ * and the whole amendment history identically for each — and "3 citations" reads
+ * as three provisions when it is one. A lawyer reads in sections; the excerpts
+ * are the evidence under a section, not peers of it.
+ */
+interface CitedSection {
+  key: string;
+  section: string;
+  source: string;
+  marginal_note: string;
+  part: string | null;
+  chapter: string | null;
+  source_url: string;
+  amendments: Amendment[];
+  quotes: string[];
+  verified: number;
+}
+
+function groupBySection(citations: Citation[]): CitedSection[] {
+  const bySection = new Map<string, CitedSection>();
+  for (const c of citations) {
+    const key = `${c.source}:${c.section}`;
+    let entry = bySection.get(key);
+    if (!entry) {
+      entry = {
+        key,
+        section: c.section,
+        source: c.source,
+        marginal_note: c.marginal_note,
+        part: c.part,
+        chapter: c.chapter,
+        source_url: c.source_url,
+        amendments: c.amendments ?? [],
+        quotes: [],
+        verified: 0,
+      };
+      bySection.set(key, entry);
+    }
+    if (c.quote && !entry.quotes.includes(c.quote)) entry.quotes.push(c.quote);
+    if (c.quote_verified) entry.verified += 1;
+  }
+  return [...bySection.values()];
 }
 
 const EXAMPLES = [
@@ -419,14 +469,20 @@ export default function Page() {
             )}
           </section>
 
-          {result.citations.length > 0 && (
+          {result.citations.length > 0 && (() => {
+            const sections = groupBySection(result.citations);
+            const excerpts = sections.reduce((n, s) => n + s.quotes.length, 0);
+            return (
             <section className="panel">
               <h2>
-                Citations — {result.citations.length} verified against the source
+                Citations — {sections.length}{" "}
+                {sections.length === 1 ? "section" : "sections"}, {excerpts}{" "}
+                {excerpts === 1 ? "excerpt" : "excerpts"} verified against the
+                source
                 {showTranslation && " · quoted text stays in English"}
               </h2>
-              {result.citations.map((citation) => (
-                <article className="cite" key={`${citation.section}-${citation.quote}`}>
+              {sections.map((citation) => (
+                <article className="cite" key={citation.key}>
                   <div className="cite-head">
                     <span className="cite-num">
                       {citation.source === "ScheduleII"
@@ -435,11 +491,13 @@ export default function Page() {
                     </span>
                     <span className="cite-note">{citation.marginal_note}</span>
                     <span
-                      className={`badge ${citation.quote_verified ? "ok" : "no"}`}
+                      className={`badge ${citation.verified > 0 ? "ok" : "no"}`}
                     >
-                      {citation.quote_verified
-                        ? "quote verified"
-                        : "no verified quote"}
+                      {citation.verified === 0
+                        ? "no verified quote"
+                        : citation.verified === 1
+                          ? "quote verified"
+                          : `${citation.verified} quotes verified`}
                     </span>
                   </div>
                   {(citation.part || citation.chapter) && (
@@ -449,7 +507,9 @@ export default function Page() {
                         .join(" › ")}
                     </div>
                   )}
-                  {citation.quote && <blockquote>{citation.quote}</blockquote>}
+                  {citation.quotes.map((quote) => (
+                    <blockquote key={quote}>{quote}</blockquote>
+                  ))}
                   {citation.amendments?.length > 0 && (
                     <details className="amend">
                       <summary>
@@ -493,7 +553,8 @@ export default function Page() {
                 </article>
               ))}
             </section>
-          )}
+            );
+          })()}
 
           {(result.dropped_citations.length > 0 ||
             result.retrieved_sections.length > 0) && (

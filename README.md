@@ -49,6 +49,16 @@ The answer is translated on demand; the statutory excerpts stay in English, beca
 each is shown with a claim that it appears verbatim in the source and a link to check
 it. Four citations, all verified, with the part and chapter each sits under.
 
+**Every citation carries how and when the section changed**
+
+![Section 54 with its amendment history, linking to the amending act](docs/screenshots/05-amendment-provenance.png)
+
+Section 54 reads as it does because Act XI of 2026 substituted it, with effect from 10
+August 2025. The current wording does not say that, and whether this section governs a
+matter depends on when the matter arose. Citations group by section — three verified
+excerpts from section 54 are three pieces of evidence for one provision, not three
+provisions.
+
 **An English answer with its citations checked**
 
 ![An English answer with verified citations](docs/screenshots/02-answer-verified-citations.png)
