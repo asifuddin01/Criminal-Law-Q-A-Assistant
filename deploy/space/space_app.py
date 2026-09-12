@@ -86,6 +86,27 @@ from app.services import (  # noqa: E402
 )
 
 
+if spaces is not None:
+
+    @spaces.GPU(duration=1)
+    def _zerogpu_probe() -> str:
+        """Declared because ZeroGPU will not start a Space without one.
+
+        `No @spaces.GPU function detected during startup` is a hard failure, and
+        this account's free tier offers ZeroGPU and nothing else — CPU basic
+        needs a subscription. So the decorator has to exist, and the platform
+        only counts it once `Blocks.launch()` fires the report that declares it.
+
+        It is never called, and that is not a workaround so much as the honest
+        answer: there is no GPU work here. Retrieval embeds one short query with
+        an ONNX model where a host-to-device transfer would cost more than the
+        arithmetic it saves, and the language model is an HTTP request to
+        somebody else's accelerator. The Space runs on the CPU it is given and
+        consumes none of the shared GPU pool it is admitted to.
+        """
+        return "ok"
+
+
 HOSTED_LABEL = "Hosted — openai/gpt-oss-120b"
 LOCAL_LABEL = "Local — qwen2.5:3b-instruct"
 
