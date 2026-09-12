@@ -13,6 +13,7 @@ from app.api.limits import AnswerCache, SlidingWindowLimiter, caller_key
 from app.config import get_settings
 from app.legal import DISCLAIMER, SOURCE_ATTRIBUTION
 from app.llm import Capability, CapabilityUnavailable, ProviderUnavailable, get_provider
+from app.llm.rate_limit import is_daily_limit, reset_hint
 from app.qa import ocr
 from app.qa.documents import DocumentStore, UnreadableDocument
 from app.qa.translate import NOTICE, UnsupportedLanguage, translate
@@ -35,6 +36,32 @@ from app.schemas import (
 from app.services import CorpusUnavailable, get_corpora, get_qa, get_schedule
 
 router = APIRouter()
+
+
+def _provider_error(exc: object) -> HTTPException:
+    """Turn a provider failure into something a reader can act on.
+
+    The daily allowance is the one failure a shared deployment actually hits, and
+    left raw it reaches the page as "502: Error code: 429 - ... TPD ...", which
+    reads as a broken application rather than a spent quota. It is a real limit
+    with a real reset, so it is reported as one: 503, what ran out, and when it
+    frees up.
+    """
+    message = str(exc)
+    if is_daily_limit(message):
+        hint = reset_hint(message)
+        when = f" It frees up in {hint}." if hint else ""
+        return HTTPException(
+            status_code=503,
+            detail=(
+                "This demo shares one free-tier daily token allowance and it is "
+                f"spent for now.{when} Nothing is broken — the corpus, retrieval "
+                "and the citation checks all still work, and the answer would be "
+                "grounded exactly as the others are. Please try again later."
+            ),
+        )
+    return HTTPException(status_code=502, detail=f"language model unavailable: {message}")
+
 
 _settings = get_settings()
 _limiter = SlidingWindowLimiter(_settings.rate_limit_per_hour)
@@ -175,13 +202,11 @@ async def ask(request: AskRequest, http_request: Request) -> AskResponse:
     except ProviderUnavailable as exc:
         # The request cost nothing, so it should not cost an allowance either.
         _limiter.forget(caller)
-        raise HTTPException(
-            status_code=502, detail=f"language model unavailable: {exc}"
-        ) from exc
+        raise _provider_error(exc) from exc
 
     if answer.error:
         _limiter.forget(caller)
-        raise HTTPException(status_code=502, detail=answer.error)
+        raise _provider_error(answer.error)
 
     result = validate(
         answer,

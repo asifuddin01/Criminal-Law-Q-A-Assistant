@@ -114,3 +114,32 @@ def test_the_local_provider_gets_a_longer_timeout_than_the_hosted_one():
     settings = Settings()
 
     assert settings.ollama_timeout_seconds > settings.request_timeout_seconds
+
+
+def test_a_spent_daily_allowance_reads_as_a_limit_not_a_crash():
+    """The one failure a shared deployment actually hits.
+
+    Left raw it reaches the page as "502: Error code: 429 - ... TPD ...", which a
+    reviewer reads as a broken application rather than a spent free-tier quota.
+    """
+    from app.api.routes import _provider_error
+
+    daily = _provider_error(
+        "Error code: 429 - Rate limit reached for model gpt-oss-120b: Limit 200000, "
+        "Used 199900. Please try again in 12m30s. tokens per day (TPD)"
+    )
+
+    assert daily.status_code == 503
+    assert "daily token allowance" in daily.detail
+    assert "12 minutes" in daily.detail
+    # It says what still works, because everything except the model call does.
+    assert "citation checks" in daily.detail
+
+
+def test_an_ordinary_provider_failure_is_still_a_502():
+    from app.api.routes import _provider_error
+
+    other = _provider_error("connection reset by peer")
+
+    assert other.status_code == 502
+    assert "connection reset" in other.detail

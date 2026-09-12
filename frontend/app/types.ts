@@ -82,5 +82,9 @@ export interface UploadedDocument {
   notice: string;
 }
 
+// Empty string means same-origin: the deployed build is served by the API
+// process, so "/api/ask" resolves without knowing the host. Local development
+// keeps the explicit URL because the two run on different ports.
 export const API_URL =
-  process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8010";
+  process.env.NEXT_PUBLIC_API_URL ??
+  (process.env.NODE_ENV === "production" ? "" : "http://localhost:8010");

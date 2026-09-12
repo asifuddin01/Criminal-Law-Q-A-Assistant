@@ -13,6 +13,7 @@ Pacing to stay under the limit turns a failing run into a slow one.
 from __future__ import annotations
 
 import asyncio
+import re
 import time
 
 
@@ -65,3 +66,46 @@ class TokenBucket:
             self._available = max(
                 0.0, min(self.capacity, self._available + (reserved - actual))
             )
+
+
+# The per-day allowance, which is a different thing from the per-minute one and
+# calls for the opposite response: a per-minute limit is waited out inside a run,
+# a per-day one cannot be. Defined here rather than in each caller — the
+# evaluation harness and the API both have to recognise it, and a second copy is
+# a second thing to forget to update.
+_DAILY = ("tokens per day", "tpd", "requests per day", "rpd")
+
+_RETRY_AFTER = re.compile(r"try again in ([0-9hms.]+)")
+
+
+def is_daily_limit(message: str) -> bool:
+    """Whether a provider error is the daily allowance rather than the per-minute one."""
+    lowered = (message or "").lower()
+    return any(marker in lowered for marker in _DAILY)
+
+
+def retry_delay(message: str, *, default: float = 600.0, cap: float = 1800.0) -> float:
+    """Seconds to wait before resuming, taken from the provider's own advice.
+
+    The daily allowance refills continuously rather than resetting at a fixed
+    hour, so the provider's retry-after is a real estimate of when the next
+    request fits, not a placeholder.
+    """
+    match = _RETRY_AFTER.search(message or "")
+    if not match:
+        return default
+    text, seconds = match.group(1), 0.0
+    for value, unit in re.findall(r"([0-9.]+)([hms])", text):
+        seconds += float(value) * {"h": 3600, "m": 60, "s": 1}[unit]
+    return min(cap, max(30.0, seconds + 15.0))
+
+
+def reset_hint(message: str) -> str:
+    """How long until the allowance frees up, phrased for a reader."""
+    seconds = retry_delay(message, default=0.0)
+    if seconds <= 0:
+        return ""
+    hours, minutes = divmod(int(seconds) // 60, 60)
+    if hours:
+        return f"about {hours}h {minutes}m"
+    return f"about {max(1, minutes)} minutes"

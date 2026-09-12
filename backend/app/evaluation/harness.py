@@ -26,6 +26,7 @@ from app.evaluation.dataset import GoldQuestion, load_gold
 from app.evaluation.metrics import QuestionScore, aggregate, score_question
 from app.ingest import cache_path, parse_act, parse_schedule, schedule_path
 from app.llm import get_provider
+from app.llm.rate_limit import is_daily_limit, retry_delay
 from app.qa import Answer, BaselineLLM, Citation, RetrievalQA
 from app.retrieval import ScheduleLookup, VectorIndex
 from app.retrieval.chunking import ACT_DOCUMENTS, document_for
@@ -95,27 +96,9 @@ class DailyBudgetExhausted(RuntimeError):
     """
 
 
-def _is_daily_limit(message: str) -> bool:
-    return "tokens per day" in message.lower() or "TPD" in message
-
-
-_RETRY_AFTER = re.compile(r"try again in ([0-9hms.]+)")
-
-
-def retry_delay(message: str, *, default: float = 600.0, cap: float = 1800.0) -> float:
-    """Seconds to wait before resuming, taken from the provider's own advice.
-
-    The daily allowance refills continuously rather than resetting at a fixed hour,
-    so the provider's retry-after is a real estimate of when the next request fits,
-    not a placeholder.
-    """
-    match = _RETRY_AFTER.search(message)
-    if not match:
-        return default
-    text, seconds = match.group(1), 0.0
-    for value, unit in re.findall(r"([0-9.]+)([hms])", text):
-        seconds += float(value) * {"h": 3600, "m": 60, "s": 1}[unit]
-    return min(cap, max(30.0, seconds + 15.0))
+# Both live in app.llm.rate_limit: the API has to recognise the same condition,
+# and two copies of "what does a daily limit look like" is one to forget.
+_is_daily_limit = is_daily_limit
 
 
 async def _run_one(

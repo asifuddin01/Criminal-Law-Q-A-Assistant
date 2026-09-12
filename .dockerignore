@@ -1,0 +1,15 @@
+# Everything the image does not need, and some things it must not have.
+**/node_modules
+**/.next
+**/out
+**/.venv
+**/__pycache__
+**/.pytest_cache
+**/.ruff_cache
+.git
+eval/runs
+docs
+data/cache
+# Never: credentials belong in the Space's secrets, not in a layer.
+**/.env
+**/.env.*

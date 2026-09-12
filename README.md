@@ -198,6 +198,18 @@ prints the provider's live model catalogue and flags anything configured but mis
 model identifiers differ between accounts and a stale one fails every request while
 looking like a credential problem.
 
+## Deploying
+
+The frontend exports to static files served by the API process, so a deployment is one
+container on one port. Steps, limits and the local `docker run`:
+**[docs/DEPLOY.md](docs/DEPLOY.md)**.
+
+```bash
+./deploy/push-to-space.sh <hf-username> <space-name>
+```
+
+The API key goes in the host's own secrets page, never in the repository.
+
 ## Data ingestion and update
 
 Sources, structure and provenance: **[DATA_SOURCE.md](DATA_SOURCE.md)**.

@@ -4,10 +4,12 @@ from __future__ import annotations
 
 import contextlib
 import logging
+import pathlib
 from collections.abc import AsyncIterator
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.staticfiles import StaticFiles
 
 from app import __version__
 from app.api.routes import router
@@ -52,6 +54,15 @@ def create_app() -> FastAPI:
     )
 
     app.include_router(router, prefix="/api")
+
+    # The exported frontend, when one has been built into the image. Mounted last
+    # so it never shadows /api, and absent in development, where Next serves
+    # itself on another port.
+    static = pathlib.Path(__file__).resolve().parents[1] / "static"
+    if (static / "index.html").exists():
+        app.mount("/", StaticFiles(directory=static, html=True), name="web")
+        logger.info("serving the exported frontend from %s", static)
+
     return app
 
 
