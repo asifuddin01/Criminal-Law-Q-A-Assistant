@@ -26,7 +26,8 @@ a roadmap.
 | Evaluation methodology | Defined — [eval/README.md](eval/README.md) |
 | Backend service, provider abstraction | Working, tested, connected to Groq |
 | Ingestion pipeline | Parser working, tested — 522 sections, 599 amendments |
-| Retrieval and generation | Complete — four stages measured on the local model; hosted stages 3-4 pending quota |
+| Retrieval and generation | Complete — four stages measured on the local model |
+| Hosted stages 3–4 | **In progress**, rate-limited — 47 of 101 answers banked, resumes from cache |
 | Corpus | CrPC (522 sections), Schedule II (376 offence rows), Penal Code (555 sections) |
 | Evaluation dataset | Built — 101 questions, all labels verified against fetched text |
 | Frontend | Working — text, speech, image and document input; verified citations |
@@ -351,7 +352,15 @@ and the best refusal accuracy. Act-aware ranking is the obvious response and is 
 
 The hosted model (`openai/gpt-oss-120b`) has completed stages 1 and 2, quoting far more
 faithfully (92.3% excerpt validity against 42.9% at the same stage) and refusing far less
-readily. Stages 3 and 4 wait on the daily token budget.
+readily.
+
+**Hosted stages 3 and 4 are in progress, paced by a free-tier daily token budget** — 47 of
+101 answers are banked and each attempt resumes from cache rather than restarting. The
+harness deliberately writes nothing for a partial sweep, because the gold set is ordered and
+stopping early biases whichever slices come last. The four-stage conclusions do not depend on
+it: that progression is measured end-to-end on the local model, where the model is constant
+and every movement is attributable to the pipeline. Detail and the resume command are in
+[EXPERIMENTS.md](EXPERIMENTS.md#hosted-stages-3-and-4-in-progress).
 
 ## Limitations
 

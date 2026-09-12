@@ -18,7 +18,7 @@ advance so that a stage producing no improvement is visibly a result rather than
 | 0 | Harness, gold dataset, no retrieval | Done |
 | 1 | LLM-only baseline | Done |
 | 2 | Naive fixed-size chunking, dense retrieval | Complete on both models |
-| 3 | Legal-aware chunking on section boundaries | Complete on local model; hosted run pending quota |
+| 3 | Legal-aware chunking on section boundaries | Complete on local model; **hosted run in progress** (see below) |
 | 4 | Full corpus: Schedule II and Penal Code, with structured offence lookup | Complete on local model |
 | — | Hybrid retrieval (BM25 + dense, RRF) | **Planned, then dropped — see below** |
 | — | Reranking | Not started |
@@ -78,8 +78,8 @@ from one change, and the direct measurement of the claim that a chunk must not c
 section boundary. Fabrication is what retrieval fixes, falling monotonically at every stage.
 Neither number is visible when the two are added together.
 
-**Hosted model** (`openai/gpt-oss-120b`), stages 1 and 2; stages 3 and 4 are pending the
-daily token budget. These runs predate six questions added to the gold set later, so they
+**Hosted model** (`openai/gpt-oss-120b`), stages 1 and 2 complete. Stages 3 and 4 are **in
+progress and rate-limited, not abandoned** — see [the note below](#hosted-stages-3-and-4-in-progress). These runs predate six questions added to the gold set later, so they
 cover 93 and 95 of 101 and are not directly comparable with the local rows above:
 
 | Stage | Retrieval recall | Citation precision | Answer hit rate | Excerpt validity | Refusal accuracy |
@@ -97,6 +97,43 @@ quotes from memory with no statutory text in front of it, and **every single quo
 corpus.** Not one is real. That is the number every later stage is measured against, and it
 is why the allowances described in [ADR 0011](docs/adr/0011-what-counts-as-a-verbatim-quotation.md)
 can be read as a correction rather than a loosened threshold: they rescue none of it.
+
+## Hosted stages 3 and 4: in progress
+
+**Status: paced by a free-tier daily token budget, not blocked and not abandoned.**
+
+The hosted track (`openai/gpt-oss-120b`) has stages 1 and 2 complete. Stage 3 has run twice
+and stopped both times on the provider's daily allowance:
+
+```
+DAILY TOKEN BUDGET EXHAUSTED — no results written
+  provider budget : 198,225 / 200,000 tokens used today
+  answers cached  : 47 of 101 (54 still needed)
+```
+
+**Nothing is lost between attempts.** Answers are cached by content hash, so each run resumes
+rather than restarts — 47 of the 101 answers are already banked, and the remaining 54 need
+roughly 108,000 tokens, which fits inside one day's allowance. The budget refills
+continuously at about 8,300 tokens an hour rather than resetting at a fixed time.
+
+**Nothing partial is written, deliberately.** The harness refuses to emit a half-finished
+sweep: the gold set is ordered, so stopping early biases whichever slices come last, and a
+biased result that looks like a measurement is worse than no result. What it writes instead
+is the choice — wait for the refill, or re-run the whole stage on the local model, which is
+free and unlimited but lands on a separate track so the two are never compared.
+
+To resume:
+
+```bash
+cd backend && uv run python -m app.evaluation.harness --stage 3 --provider groq
+```
+
+**What this costs the conclusions: nothing.** The four-stage progression is measured
+end-to-end on `qwen2.5:3b-instruct`, where the model is constant across stages and every
+movement is attributable to the pipeline. The hosted track exists to show how the same
+pipeline behaves with a stronger model, and stage 2 already does: 92.3% excerpt validity
+against the local model's 42.9% at the identical stage, on the same dataset and the same
+scorer. Stages 3 and 4 would extend that comparison, not establish it.
 
 ## Entries
 
