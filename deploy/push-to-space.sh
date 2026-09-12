@@ -100,6 +100,7 @@ mkdir -p "$STAGE/backend" "$STAGE/data/raw" "$STAGE/data/parsed" "$STAGE/data/in
 rsync -a --quiet \
     --exclude '__pycache__' --exclude '.venv' --exclude '.pytest_cache' \
     --exclude '.ruff_cache' --exclude 'tests' --exclude 'static' --exclude '.env*' \
+    --exclude 'evaluation' \
     backend/ "$STAGE/backend/"
 
 cp -R frontend/out "$STAGE/backend/static"

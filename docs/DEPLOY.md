@@ -56,6 +56,31 @@ A Space created on ZeroGPU cannot always be downgraded to CPU basic afterwards: 
 treats that as a downgrade and may require PRO. Choosing the hardware at creation avoids the
 question entirely.
 
+### Dependencies
+
+`deploy/space/requirements.txt` lists **direct dependencies with floors, not a lockfile
+export**. Hugging Face installs it in the same pip invocation as its own pins:
+
+```
+pip install -r requirements.txt "torch<=2.13.0" gradio[oauth,mcp]==6.27.0 \
+    "uvicorn>=0.14.0" "websockets>=10.4" spaces==0.51.3
+```
+
+An exact transitive tree asks pip to satisfy our resolution and theirs at once, and there
+is usually no such set. The first build failed on precisely that: our lock pinned
+`pydantic==2.13.5` while gradio 6.27.0 requires `<=2.12.5`. Floors let pip find a set that
+satisfies both — verified by resolving the combination for linux/Python 3.12 before
+pushing.
+
+`gradio` itself is deliberately absent from the file: the platform pins its own version,
+and a second pin is a conflict waiting to happen.
+
+Regenerate after changing backend dependencies:
+
+```bash
+./deploy/space/refresh.sh
+```
+
 ### 2. Push
 
 ```bash

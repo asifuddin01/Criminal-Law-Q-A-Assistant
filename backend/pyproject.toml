@@ -15,6 +15,9 @@ dependencies = [
     "httpx>=0.28.1",
     "fastembed>=0.8.0",
     "pdfplumber>=0.11.10",
+    # Imported directly by the vector index, and previously relied on arriving
+    # through fastembed. A dependency you import is a dependency you declare.
+    "numpy>=1.26",
 ]
 
 [dependency-groups]
