@@ -177,3 +177,73 @@ def test_settings_load_with_no_environment_at_all():
     from app.config import Settings
 
     assert Settings(_env_file=None).app_name
+
+
+def test_a_truncated_reply_is_reported_as_truncation_not_as_a_missing_citation():
+    """Regression, found on the deployed Space rather than in a test.
+
+    The hosted model hit its token budget mid-sentence. The JSON never closed,
+    so the reply parsed as prose, produced no citations, and the validation gate
+    withheld it with "No citation in the answer could be verified against the
+    retrieved statutory text" — a message that blames the model's grounding for
+    a budget that ran out, shown to a user who cannot tell the difference.
+    """
+    import asyncio
+
+    from app.llm.base import ChatMessage, Completion
+    from app.qa.rag import RetrievalQA
+
+    class TruncatingProvider:
+        name = "stub"
+        _chat_model = "stub-model"
+
+        async def complete(self, messages: list[ChatMessage], **kwargs) -> Completion:
+            return Completion(
+                text='{"refused": false, "answer": "A police-officer may arrest',
+                model="stub-model",
+                completion_tokens=2500,
+                finish_reason="length",
+            )
+
+    class OneChunkIndex:
+        model_name = "stub-embeddings"
+        chunks: list = []
+
+        def search(self, query: str, *, k: int = 10):
+            from app.retrieval.chunking import Chunk
+
+            chunk = Chunk(
+                chunk_id="legal-CrPC-54-0",
+                text="54. (1) Any police-officer may arrest without warrant.",
+                section_number="54",
+                marginal_note="When police may arrest without warrant",
+                part=None,
+                chapter=None,
+                strategy="legal_aware",
+            )
+
+            class Hit:
+                pass
+
+            hit = Hit()
+            hit.chunk = chunk
+            return [hit]
+
+        def __len__(self) -> int:
+            return 1
+
+    system = RetrievalQA(TruncatingProvider(), OneChunkIndex(), name="test")
+    answer = asyncio.run(system.answer("When may a police officer arrest?"))
+
+    assert answer.error is not None
+    assert "token budget" in answer.error
+    assert "2500" in answer.error
+    # And it is an error, not a refusal dressed up as one.
+    assert answer.refused is False
+
+
+def test_the_answer_budget_covers_a_reasoning_model():
+    """2500 truncated the hosted model on ordinary questions."""
+    from app.config import Settings
+
+    assert Settings(_env_file=None).answer_max_tokens >= 4000

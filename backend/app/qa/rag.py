@@ -199,6 +199,24 @@ class RetrievalQA:
                 retrieved_sections=retrieved,
             )
 
+        if completion.finish_reason == "length":
+            # The reply was cut off by the token budget. Left alone this is
+            # indistinguishable from a model that answered without citing: the
+            # JSON never closes, so it parses as prose, yields no citations, and
+            # the gate withholds it with "no citation could be verified" — which
+            # blames the model's grounding for what is a budget that ran out.
+            # Reported as the truncation it is.
+            return Answer(
+                text="",
+                model=completion.model,
+                error=(
+                    "the model ran out of token budget before finishing its "
+                    f"answer ({completion.completion_tokens} tokens). Raise "
+                    "ANSWER_MAX_TOKENS and ask again."
+                ),
+                retrieved_sections=retrieved,
+            )
+
         text, citations, refused = _parse(completion.text)
         return Answer(
             text=text,

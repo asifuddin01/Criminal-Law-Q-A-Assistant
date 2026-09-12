@@ -99,6 +99,7 @@ class OpenAICompatibleProvider(LLMProvider):
             model=response.model,
             prompt_tokens=usage.prompt_tokens if usage else None,
             completion_tokens=usage.completion_tokens if usage else None,
+            finish_reason=response.choices[0].finish_reason,
         )
 
     async def transcribe(

@@ -42,7 +42,12 @@ class Settings(BaseSettings):
     # such as gpt-oss spend completion tokens on reasoning before emitting any
     # content, so a budget sized for the answer alone returns an empty string with
     # finish_reason "stop" — a silent truncation that looks like a model failure.
-    answer_max_tokens: int = 2500
+    # Reasoning models spend completion tokens on reasoning before they write
+    # anything, so the budget has to cover both. At 2500 the hosted model was
+    # truncated mid-sentence on ordinary questions — "when may a police officer
+    # arrest without a warrant" enumerates ten categories — and a reply cut off
+    # before its closing brace produces no citations at all.
+    answer_max_tokens: int = 6000
 
     # How many chunks are put in front of the model. Held constant across
     # evaluation stages: changing it alongside the chunking strategy would make

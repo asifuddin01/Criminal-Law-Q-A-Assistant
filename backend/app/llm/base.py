@@ -49,6 +49,12 @@ class Completion:
     model: str
     prompt_tokens: int | None = None
     completion_tokens: int | None = None
+    # Why the model stopped. "length" means it ran out of budget mid-sentence,
+    # which is a different failure from anything it chose to say and has to be
+    # told apart from one: a reply cut off before its closing brace parses as
+    # prose, produces no citations, and is then indistinguishable from a model
+    # that simply failed to cite.
+    finish_reason: str | None = None
 
 
 class LLMProvider(ABC):
