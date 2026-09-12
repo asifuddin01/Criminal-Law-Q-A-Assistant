@@ -13,7 +13,7 @@ from dataclasses import asdict, dataclass, field
 
 from app.evaluation.dataset import GoldQuestion
 from app.ingest.models import Act, ScheduleEntry
-from app.qa.quoting import MIN_QUOTE_CHARS, canonical, check_quote
+from app.qa.quoting import MIN_QUOTE_CHARS, SourceIndex, canonical, check_quote
 from app.qa.schema import CRPC, SCHEDULE_II, Answer
 from app.retrieval.chunking import schedule_rows
 
@@ -32,12 +32,20 @@ class QuestionScore:
 
     quotes_checked: int = 0
     quotes_valid: int = 0
+    # Of the invalid ones: real statutory text attributed to the wrong section,
+    # against text that appears nowhere in the corpus. A chunk crossing a section
+    # boundary produces the first when the model quotes it honestly; only the
+    # second is the model inventing law.
+    quotes_misattributed: int = 0
+    quotes_fabricated: int = 0
 
     retrieved: int = 0
     retrieval_hit: bool = False
 
     hallucinated_sections: list[str] = field(default_factory=list)
     unsupported_quotes: list[str] = field(default_factory=list)
+    # "CrPC:52->CrPC:53": cited the first, quoted the second's words.
+    misattributed_to: list[str] = field(default_factory=list)
     # Quotations that verified only after a label was trimmed or an elision read as
     # one. Counted separately so excerpt validity can be reported with and without
     # the allowance rather than quietly including it.
@@ -64,6 +72,27 @@ class QuestionScore:
         return self.citations_correct > 0
 
 
+# Built once per corpus rather than per question: the index is a few thousand
+# canonicalised strings, and rebuilding it 101 times would dominate scoring.
+_SOURCE_CACHE: dict[tuple, SourceIndex] = {}
+
+
+def _sources(acts: dict[str, Act], schedule_text: dict[str, str]) -> SourceIndex:
+    key = tuple(sorted((code, a.act_id, len(a.sections)) for code, a in acts.items()))
+    key += (len(schedule_text),)
+    cached = _SOURCE_CACHE.get(key)
+    if cached is None:
+        bodies = [
+            (f"{code}:{section.number}", section.text)
+            for code, act in acts.items()
+            for section in act.sections
+        ]
+        bodies += [(f"{SCHEDULE_II}:{n}", t) for n, t in schedule_text.items()]
+        cached = SourceIndex(bodies)
+        _SOURCE_CACHE[key] = cached
+    return cached
+
+
 def score_question(
     question: GoldQuestion,
     answer: Answer,
@@ -85,6 +114,7 @@ def score_question(
     schedule_notes = {
         e.penal_code_section: e.offence.strip().rstrip(".") for e in (schedule or [])
     }
+    sources = _sources(acts, schedule_text)
     score = QuestionScore(
         question_id=question.id,
         slice=question.slice.value,
@@ -143,6 +173,12 @@ def score_question(
                 score.quotes_repaired += int(bool(checked.repair))
             else:
                 score.unsupported_quotes.append(citation.quote[:120])
+                found = sources.locate(citation.quote) if sources else None
+                if found:
+                    score.quotes_misattributed += 1
+                    score.misattributed_to.append(f"{citation.document}:{number}->{found}")
+                else:
+                    score.quotes_fabricated += 1
 
     return score
 
@@ -168,6 +204,8 @@ def aggregate(scores: list[QuestionScore]) -> dict:
     quotes = sum(s.quotes_checked for s in measured)
     valid_quotes = sum(s.quotes_valid for s in measured)
     repaired_quotes = sum(s.quotes_repaired for s in measured)
+    misattributed = sum(s.quotes_misattributed for s in measured)
+    fabricated = sum(s.quotes_fabricated for s in measured)
 
     by_slice: dict[str, dict] = {}
     for score in scores:
@@ -214,8 +252,15 @@ def aggregate(scores: list[QuestionScore]) -> dict:
         # gap between the two is the cost of the allowances, stated rather than
         # absorbed into a single rate.
         "excerpt_validity_unrepaired": _ratio(valid_quotes - repaired_quotes, quotes),
+        # Of every quotation checked, the share that is real statutory text under
+        # the wrong section, and the share that is not in the corpus at all. The
+        # first is a chunking failure, the second the model inventing law.
+        "misattribution_rate": _ratio(misattributed, quotes),
+        "fabrication_rate": _ratio(fabricated, quotes),
         "quotes_checked": quotes,
         "quotes_repaired": repaired_quotes,
+        "quotes_misattributed": misattributed,
+        "quotes_fabricated": fabricated,
         "refusal_accuracy": _ratio(
             sum(1 for s in measured if s.decided_correctly), len(measured)
         ),

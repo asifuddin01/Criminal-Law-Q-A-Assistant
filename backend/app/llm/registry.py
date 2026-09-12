@@ -55,7 +55,7 @@ def _build_ollama(settings: Settings) -> LLMProvider:
         capabilities=frozenset({Capability.TEXT}),
         default_temperature=settings.temperature,
         default_max_tokens=settings.max_tokens,
-        timeout=settings.request_timeout_seconds,
+        timeout=settings.ollama_timeout_seconds,
     )
 
 

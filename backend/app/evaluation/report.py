@@ -154,32 +154,51 @@ def _slug(text: str) -> str:
 
 
 def chart_hallucination(runs: list[dict], *, model: str = "") -> pathlib.Path:
-    """The two numbers that matter most, side by side: fabricated citations and
-    fabricated quotations."""
+    """What the system invents, against what it merely misfiles.
+
+    Three bars, because "invalid quotation" was two different failures added
+    together. A quotation that is real statutory text under the wrong section is a
+    chunking failure; one that appears in no section is the model writing law. They
+    move in opposite directions across the stages and no single bar shows that.
+    """
     labels = [f"Stage {r['stage']}" for r in runs]
     hallucinated = [(r.get("hallucinated_citation_rate") or 0) * 100 for r in runs]
-    invalid_quotes = [
-        100 - (r["excerpt_validity"] * 100) if r.get("excerpt_validity") is not None
-        else 0
-        for r in runs
-    ]
 
-    fig, ax = plt.subplots(figsize=(7, 4.2))
-    width = 0.36
+    def rate(run: dict, key: str) -> float:
+        value = run.get(key)
+        if value is not None:
+            return value * 100
+        # A run scored before the split: everything invalid counted as fabricated.
+        if key == "fabrication_rate" and run.get("excerpt_validity") is not None:
+            return 100 - run["excerpt_validity"] * 100
+        return 0.0
+
+    fabricated = [rate(r, "fabrication_rate") for r in runs]
+    misattributed = [rate(r, "misattribution_rate") for r in runs]
+
+    fig, ax = plt.subplots(figsize=(7.6, 4.2))
+    width = 0.26
     positions = range(len(runs))
     ax.bar(
-        [p - width / 2 for p in positions],
+        [p - width for p in positions],
         hallucinated,
         width,
         label="Citations to sections that do not exist",
         color=SERIES[1],
     )
     ax.bar(
-        [p + width / 2 for p in positions],
-        invalid_quotes,
+        list(positions),
+        fabricated,
         width,
-        label="Quotations not found in the cited section",
+        label="Quotations found in no section at all",
         color=SERIES[3],
+    )
+    ax.bar(
+        [p + width for p in positions],
+        misattributed,
+        width,
+        label="Real text, quoted under the wrong section",
+        color=SERIES[4],
     )
     ax.set_xticks(list(positions))
     ax.set_xticklabels(labels, color=INK)
@@ -320,9 +339,17 @@ def chart_retrieval() -> pathlib.Path | None:
 # disagrees with the allowance can read the stricter number.
 STRICT = ("excerpt_validity_unrepaired", "Excerpt validity (as written)")
 
+# A failed quotation is either real text under the wrong section or text that is
+# in no section at all. Reported separately because they have opposite fixes:
+# misattribution is a chunking failure, fabrication is the model inventing law.
+SPLIT = [
+    ("misattribution_rate", "Misattributed"),
+    ("fabrication_rate", "Fabricated"),
+]
+
 
 def markdown_table(runs: list[dict]) -> str:
-    columns = [*HEADLINE, STRICT]
+    columns = [*HEADLINE, STRICT, *SPLIT]
     header = (
         "| Model | Stage | System | Measured | "
         + " | ".join(label for _, label in columns)

@@ -399,6 +399,8 @@ def _report(summary: dict) -> None:
         ("answer hit rate", "answer_hit_rate"),
         ("excerpt validity", "excerpt_validity"),
         ("  of which matched as written", "excerpt_validity_unrepaired"),
+        ("misattributed quotes", "misattribution_rate"),
+        ("fabricated quotes", "fabrication_rate"),
         ("refusal accuracy", "refusal_accuracy"),
         ("refused when unanswerable", "refused_when_unanswerable"),
         ("refused when answerable", "refused_when_answerable"),

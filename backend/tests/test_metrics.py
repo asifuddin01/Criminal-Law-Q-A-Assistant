@@ -214,3 +214,73 @@ def test_a_quotation_repaired_by_trimming_a_label_is_counted_separately():
     assert summary["excerpt_validity"] == 1.0
     # Reported alongside, so the allowance is visible rather than absorbed.
     assert summary["excerpt_validity_unrepaired"] == 0.0
+
+
+def test_real_text_under_the_wrong_section_is_not_scored_as_fabrication():
+    """The two failures have opposite fixes.
+
+    A chunk that crosses a section boundary contains another section's words. A
+    model quoting it honestly produces real statutory text attributed to the wrong
+    section — a chunking failure that no prompt removes. Counting it as
+    fabrication says the model invented law, and points the fix at the model.
+    """
+    code = Act(
+        act_id=75,
+        title="test",
+        source_url="x",
+        fetched_at="2026-01-01T00:00:00Z",
+        source_hash="0" * 64,
+        sections=[
+            Section(
+                number="52",
+                units=[
+                    SectionUnit(
+                        marginal_note="Search of women",
+                        text="52. Whenever a woman is to be searched.",
+                    )
+                ],
+            ),
+            Section(
+                number="53",
+                units=[
+                    SectionUnit(
+                        marginal_note="Seizure of offensive weapons",
+                        text=(
+                            "53. The officer making any arrest may take from the "
+                            "person arrested any offensive weapons."
+                        ),
+                    )
+                ],
+            ),
+        ],
+    )
+    answer = Answer(
+        text="...",
+        citations=[
+            Citation(
+                section="52",
+                source=CRPC,
+                # Section 53's words, cited as 52 — what a window starting in 52
+                # and running into 53 puts in front of the model.
+                quote="The officer making any arrest may take from the person arrested",
+            ),
+            Citation(
+                section="53",
+                source=CRPC,
+                quote="The officer shall immediately release the person on bail.",
+            ),
+        ],
+        retrieved_sections=["CrPC:52", "CrPC:53"],
+    )
+
+    score = score_question(_question(), answer, {CRPC: code})
+
+    assert score.quotes_checked == 2
+    assert score.quotes_valid == 0
+    assert score.quotes_misattributed == 1
+    assert score.quotes_fabricated == 1
+    assert score.misattributed_to == ["CrPC:52->CrPC:53"]
+
+    summary = aggregate([score])
+    assert summary["misattribution_rate"] == 0.5
+    assert summary["fabrication_rate"] == 0.5

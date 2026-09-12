@@ -57,6 +57,14 @@ class Settings(BaseSettings):
 
     request_timeout_seconds: float = 60.0
 
+    # A local model on CPU is not a hosted one on accelerators, and a single
+    # timeout for both measures the machine rather than the system. At 60s a
+    # full evaluation sweep lost five questions to timeouts, four of them
+    # Bangla — the slice that generates the most tokens per character with this
+    # tokenizer — which does not read as "slow" in the results, it reads as a
+    # weaker Bangla slice.
+    ollama_timeout_seconds: float = 300.0
+
     # Free-tier token-per-minute limits are reached easily by a full evaluation
     # sweep. The client retries 429s with backoff, honouring Retry-After.
     request_max_retries: int = 6

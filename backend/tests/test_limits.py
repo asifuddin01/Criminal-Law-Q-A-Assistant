@@ -98,3 +98,19 @@ def test_forwarded_header_identifies_the_caller_behind_a_proxy():
     assert caller_key("10.0.0.1", "203.0.113.7, 10.0.0.1") == "203.0.113.7"
     assert caller_key("10.0.0.1", None) == "10.0.0.1"
     assert caller_key(None, None) == "unknown"
+
+
+def test_the_local_provider_gets_a_longer_timeout_than_the_hosted_one():
+    """Regression. One timeout for both measured the machine, not the system.
+
+    At 60 seconds a full sweep lost five questions to timeouts, four of them in
+    the Bangla slice — the one that generates the most tokens per character with
+    this tokenizer. An errored question is excluded from the rates, so the effect
+    was not a visible "slow" but a Bangla slice quietly measured over fewer
+    questions than every other slice.
+    """
+    from app.config import Settings
+
+    settings = Settings()
+
+    assert settings.ollama_timeout_seconds > settings.request_timeout_seconds

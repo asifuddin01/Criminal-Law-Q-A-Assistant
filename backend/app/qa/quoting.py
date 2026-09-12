@@ -164,3 +164,37 @@ def _drop_leading(text: str, canonical_chars: int) -> str:
             return text[index:]
         seen = len(canonical(text[: index + 1]))
     return ""
+
+
+class SourceIndex:
+    """Every section's text, for asking where a quotation actually came from.
+
+    A quotation that fails against the section it cites has failed in one of two
+    ways, and they are not the same failure. Either the text exists nowhere in the
+    corpus — the model wrote it — or it is real statutory text attributed to the
+    wrong section, which is what a chunk crossing a section boundary produces when
+    the model quotes it honestly.
+
+    They call for opposite fixes. Fabrication is a model and prompt problem;
+    misattribution is a chunking problem, and no amount of prompting removes it if
+    the chunk the model was shown genuinely contains another section's words.
+    Reporting them as one number hides which one a stage is suffering from.
+    """
+
+    __slots__ = ("_bodies",)
+
+    def __init__(self, bodies) -> None:
+        # (identifier, canonical text), built once and searched linearly. The
+        # corpus is a few thousand sections and this runs only for quotations that
+        # already failed, so the scan costs less than the indexing would.
+        self._bodies = [(name, canonical(text)) for name, text in bodies if text]
+
+    def locate(self, quote: str) -> str | None:
+        """The section this text really belongs to, or None if it belongs to none."""
+        needle = canonical(quote)
+        if len(needle) < MIN_QUOTE_CHARS:
+            return None
+        for name, body in self._bodies:
+            if needle in body:
+                return name
+        return None
