@@ -62,10 +62,24 @@ question entirely.
 ./deploy/push-to-space.sh <hf-username> <space-name>
 ```
 
-It exports the frontend, precomputes the Schedule II parse, assembles the Space's own
-`README.md`, `space_app.py`, `requirements.txt` and `packages.txt`, force-adds the
-artefacts `main` does not track, pushes to a throwaway branch, and restores your working
-tree. `main` is untouched.
+It assembles everything in a throwaway directory with its own fresh git repository. This
+repository is never checked out, never branched and never modified.
+
+That matters: an earlier version did the opposite — it force-added the gitignored corpus
+onto a temporary branch *here* and then switched back, and git deleted `data/raw`,
+`data/parsed` and the index from the working tree on the way out, because they were tracked
+on the branch it left and absent on the one it arrived at. Staging elsewhere removes the
+whole class of accident.
+
+The Space gets a single commit, not this project's history. It has no use for the
+screenshots and charts, and Hugging Face **rejects binary files that are not stored through
+LFS/Xet** — which every PNG ever committed here would be. The result is 78 files and 3.9 MB
+instead of 872 objects and 14.5 MB.
+
+One binary does ship: the index vectors, `data/index/legal_aware_schedule/vectors.npy`. The
+script tracks `*.npy` with git-lfs before committing, which is what Hugging Face requires.
+The 3.7 MB Schedule II PDF is deliberately left behind — the parsed rows ship instead and
+are what the application reads; the PDF stays in this repository as their provenance.
 
 Git will ask for credentials: the username is your Hugging Face username and the password
 is a **write** access token from

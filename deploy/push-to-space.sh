@@ -1,17 +1,25 @@
 #!/usr/bin/env bash
-# Push this repository to a Hugging Face Space.
+# Push this project to a Hugging Face Space.
 #
 #   ./deploy/push-to-space.sh <hf-username> <space-name>
 #
-# The Space runs under the `gradio` SDK, which has no build step — so everything
-# a Dockerfile would have produced during a build has to be produced here and
-# committed: the exported frontend, the parsed Schedule II, the corpus and the
-# index. All of it goes onto a throwaway branch, so the working tree and main are
-# untouched.
+# Everything is assembled in a throwaway directory with its own fresh git repo.
+# This repository is never checked out, never branched and never modified.
+#
+# An earlier version of this script did the opposite: it force-added the
+# gitignored corpus onto a temporary branch in *this* repo and then switched
+# back. Git dutifully deleted data/raw, data/parsed and the index from the
+# working tree on the way out, because they were tracked on the branch it left
+# and absent on the one it arrived at. Staging elsewhere removes the whole class
+# of accident.
+#
+# The Space also gets a single commit rather than this project's history. It has
+# no use for eighteen months of screenshots, and Hugging Face rejects binaries
+# that are not stored through LFS/Xet — including every PNG ever committed here.
 #
 # The API key is NOT handled here. Set it in the Space's own settings, under
-# Settings -> Variables and secrets, as GROQ_API_KEY. A key committed to a repo
-# is a key you have to rotate, and it stays in the history after you delete it.
+# Settings -> Variables and secrets, as GROQ_API_KEY. A key in a commit is a key
+# you have to rotate, and it stays in the history after you delete it.
 set -euo pipefail
 
 if [ $# -ne 2 ]; then
@@ -22,9 +30,13 @@ fi
 USER_NAME="$1"
 SPACE_NAME="$2"
 REMOTE="https://huggingface.co/spaces/${USER_NAME}/${SPACE_NAME}"
-BRANCH="space-deploy-$(date +%s)"
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "$ROOT"
+
+if ! command -v git-lfs >/dev/null 2>&1; then
+    echo "git-lfs is required (the index is a binary file): brew install git-lfs" >&2
+    exit 1
+fi
 
 if [ ! -d data/index/legal_aware_schedule ] || [ ! -d data/raw ]; then
     echo "data/ is missing. Build it first:" >&2
@@ -33,45 +45,56 @@ if [ ! -d data/index/legal_aware_schedule ] || [ ! -d data/raw ]; then
     exit 1
 fi
 
-if [ -n "$(git status --porcelain)" ]; then
-    echo "working tree is not clean; commit or stash first" >&2
-    exit 1
-fi
-
-STARTING_BRANCH="$(git rev-parse --abbrev-ref HEAD)"
-cleanup() {
-    git checkout --quiet "$STARTING_BRANCH" 2>/dev/null || true
-    git branch -D "$BRANCH" >/dev/null 2>&1 || true
-    rm -rf "$ROOT/backend/static"
-}
-trap cleanup EXIT
+STAGE="$(mktemp -d -t crimlaw-space)"
+trap 'rm -rf "$STAGE"' EXIT
 
 echo "==> exporting the frontend"
 (cd frontend && npm run build >/dev/null)
-rm -rf backend/static
-cp -R frontend/out backend/static
 
 echo "==> precomputing the Schedule II parse"
-# 48 seconds of PDF parsing that would otherwise run on every cold start.
-(cd backend && uv run python -m app.ingest.precompute)
+# 48 seconds of PDF parsing that would otherwise run on every cold start, and a
+# Gradio Space has no build step in which to do it.
+(cd backend && uv run python -m app.ingest.precompute >/dev/null)
 
-echo "==> preparing $BRANCH"
-git checkout --quiet -b "$BRANCH"
+echo "==> assembling the Space in $STAGE"
+mkdir -p "$STAGE/backend" "$STAGE/data/raw" "$STAGE/data/parsed" "$STAGE/data/index"
 
-# What the Space needs at its root.
-cp deploy/space/space_app.py deploy/space/requirements.txt deploy/space/packages.txt .
-cp deploy/space-readme.md README.md
-git add -f space_app.py requirements.txt packages.txt README.md
+# The application, minus everything that is not needed to serve it.
+rsync -a --quiet \
+    --exclude '__pycache__' --exclude '.venv' --exclude '.pytest_cache' \
+    --exclude '.ruff_cache' --exclude 'tests' --exclude 'static' --exclude '.env*' \
+    backend/ "$STAGE/backend/"
 
-# Built and fetched artefacts, which main does not track.
-git add -f backend/static data/raw data/index/legal_aware_schedule data/parsed
+cp -R frontend/out "$STAGE/backend/static"
 
-git commit --quiet -m "deploy: application, corpus, index and Space configuration"
+# The corpus. The Schedule II PDF is deliberately not shipped: the parsed rows
+# are, the application reads those, and the PDF is 3.7 MB of binary that would
+# only be re-parsed. It stays in this repository as the provenance for them.
+cp data/raw/act-print-*.html "$STAGE/data/raw/"
+cp data/parsed/schedule-ii.json "$STAGE/data/parsed/"
+cp -R data/index/legal_aware_schedule "$STAGE/data/index/"
+
+# What the Space itself needs at its root.
+cp deploy/space/space_app.py deploy/space/requirements.txt deploy/space/packages.txt "$STAGE/"
+cp deploy/space-readme.md "$STAGE/README.md"
+
+cd "$STAGE"
+git init -q -b main
+git lfs install --local >/dev/null
+
+# Hugging Face rejects binary files committed as plain git blobs. The index
+# vectors are the only binary here; tracking the extension rather than the path
+# keeps this correct if another index is ever added.
+git lfs track "*.npy" >/dev/null
+git add .gitattributes
+
+git add -A
+git -c user.email="deploy@localhost" -c user.name="deploy" \
+    commit -q -m "Criminal Law Q&A — application, corpus and index"
 
 echo "==> pushing to $REMOTE"
-git remote remove space 2>/dev/null || true
 git remote add space "$REMOTE"
-git push --force space "$BRANCH:main"
+git push --force space main
 
 echo
 echo "Pushed. Now, once only:"
@@ -79,5 +102,4 @@ echo "  1. open ${REMOTE}/settings"
 echo "  2. under 'Variables and secrets', add a secret named GROQ_API_KEY"
 echo "  3. paste your key there — it is never committed and never leaves that page"
 echo
-echo "The first build installs tesseract and 61 Python packages; several minutes."
-echo "Watch it at ${REMOTE}?logs=build"
+echo "Watch the build at ${REMOTE}?logs=build"
