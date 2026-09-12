@@ -48,27 +48,55 @@ never followed.
 
 ## Results summary
 
-Populated as stages complete. Retrieval recall, citation precision, answer faithfulness and
-refusal accuracy are reported per stage against the frozen gold set.
+Every run below was scored by one scorer (`rescore --all`), so rows are comparable with
+each other rather than with whatever the scorer happened to be on the day each ran. Charts:
+[eval/runs/charts/](eval/runs/charts/).
 
-| Stage | Recall@10 | Citation precision | Excerpt validity | Refusal accuracy |
-|---|---|---|---|---|
-| 1 — LLM only | n/a (no retrieval) | 18.4% | **0.0%** | 85.0% |
-| 2 — naive chunks | 48.6% | 54.9% | 74.6% | 71.6% |
-| 3 — legal-aware chunks | **90.3%** (retrieval-only) | pending | pending | pending |
-
-Hosted stage 2 is now complete at 95 of 95 measured, zero errors, after the harness
-learned to sleep through the daily budget and resume from cache.
-
-**Complete progression on the local model** (`qwen2.5:3b-instruct`, all three stages,
-93-94 of 95 measured each). Absolute quality is lower than the hosted model, but the
-model is constant across stages, so the movement is attributable to the pipeline:
+**Complete four-stage progression, local model** (`qwen2.5:3b-instruct`, 101 of 101
+questions measured at every stage, no errors). The model is constant across stages, so the
+movement is the pipeline:
 
 | Stage | Retrieval recall | Citation precision | Answer hit rate | Excerpt validity | Refusal accuracy |
 |---|---|---|---|---|---|
-| 1 — LLM only | n/a | 7.4% | 1.4% | 0.0% | 71.0% |
-| 2 — naive chunks | 48.6% | 36.8% | 36.1% | 49.4% | 83.0% |
-| 3 — legal-aware chunks | **88.6%** | **80.8%** | **80.0%** | 53.2% | 86.0% |
+| 1 — LLM only | n/a | 6.9% | 1.3% | **0.0%** | 73.3% |
+| 2 — naive chunks | 63.6% | 61.2% | 48.0% | 42.9% | 90.1% |
+| 3 — legal-aware chunks | 80.5% | **66.3%** | **63.6%** | 77.4% | 88.1% |
+| 4 — full corpus + offence lookup | **81.8%** | 59.1% | 61.0% | **81.2%** | **90.1%** |
+
+**What a failed quotation actually was.** "Invalid excerpt" is two failures with opposite
+fixes, and separating them is the clearest result in this table:
+
+| Stage | Verified | Real text, wrong section | In no section at all |
+|---|---|---|---|
+| 1 — LLM only | 0.0% | 0.0% | **100.0%** |
+| 2 — naive chunks | 42.9% | **18.6%** | 38.6% |
+| 3 — legal-aware chunks | 77.4% | **5.4%** | 17.2% |
+| 4 — full corpus | 81.2% | 6.2% | **12.5%** |
+
+Misattribution is what legal-aware chunking fixes — 18.6% to 5.4%, a two-thirds reduction
+from one change, and the direct measurement of the claim that a chunk must not cross a
+section boundary. Fabrication is what retrieval fixes, falling monotonically at every stage.
+Neither number is visible when the two are added together.
+
+**Hosted model** (`openai/gpt-oss-120b`), stages 1 and 2; stages 3 and 4 are pending the
+daily token budget. These runs predate six questions added to the gold set later, so they
+cover 93 and 95 of 101 and are not directly comparable with the local rows above:
+
+| Stage | Retrieval recall | Citation precision | Answer hit rate | Excerpt validity | Refusal accuracy |
+|---|---|---|---|---|---|
+| 1 — LLM only | n/a | 17.9% | 24.0% | **0.0%** | 86.0% |
+| 2 — naive chunks | 45.5% | 54.9% | 51.9% | **92.3%** | 66.3% |
+
+The hosted model quotes far more faithfully than the local one (92.3% against 42.9% at the
+same stage) and refuses far less readily (66.3% against 90.1%). Both are visible only
+because the same dataset and the same scorer are used for both.
+
+**The baseline is the control the rest of the table depends on.** On both models, stage 1
+quotes from memory with no statutory text in front of it, and **every single quotation —
+143 on the hosted model, 13 on the local one — is text that appears in no section of the
+corpus.** Not one is real. That is the number every later stage is measured against, and it
+is why the allowances described in [ADR 0011](docs/adr/0011-what-counts-as-a-verbatim-quotation.md)
+can be read as a correction rather than a loosened threshold: they rescue none of it.
 
 ## Entries
 
@@ -644,3 +672,74 @@ predated the fingerprint, and I had to search the prompt's git history to find t
 now write `answers.jsonl` beside their scores, and `python -m app.evaluation.rescore`
 re-derives the scores from it. A score is downstream of an answer, and correcting the
 scorer should never mean paying a model again to re-measure text that has not changed.
+
+### 2026-09-12 — Four stages on the corrected pipeline
+
+**Objective.** Re-run every stage after the scorer, the prompt and the extract rendering
+were corrected, and separate what each change was responsible for.
+
+**Method.** All four stages on `qwen2.5:3b-instruct`, 101 questions, same index family,
+same gold set. Two things had changed since the previous sweep: the extract label is now
+marked as a label with the statutory text fenced and the prompt says to quote only from
+between the fences, and the scorer resolves each citation against the document it claims.
+After the sweep every run — both models, all six — was re-scored by one scorer so the rows
+compare with each other.
+
+**Result.** Complete, 101 of 101 measured at every stage, zero errors:
+
+| Stage | Recall | Citation precision | Answer hit rate | Excerpt validity | as written | Refusal accuracy |
+|---|---|---|---|---|---|---|
+| 1 — LLM only | n/a | 6.9% | 1.3% | 0.0% | 0.0% | 73.3% |
+| 2 — naive chunks | 63.6% | 61.2% | 48.0% | 42.9% | 42.9% | 90.1% |
+| 3 — legal-aware chunks | 80.5% | **66.3%** | **63.6%** | 77.4% | 67.7% | 88.1% |
+| 4 — full corpus | **81.8%** | 59.1% | 61.0% | **81.2%** | 62.5% | **90.1%** |
+
+**The prompt change did what it was for, and only there.** Stage 3's as-written excerpt
+validity — quotations that matched with no allowance made — went from 40.8% to 67.7%. That
+is the model no longer copying the extract's label into its quotations, which is what the
+fencing and the prompt rule were for.
+
+It did not help stage 2, and appears to have hurt it. Comparing the same stage across the
+two sweeps:
+
+| stage 2 | quotations | verified | wrong section | in no section |
+|---|---|---|---|---|
+| previous sweep | 91 | 57.1% | 17.6% | 25.3% |
+| this sweep | 70 | 42.9% | 18.6% | **38.6%** |
+
+The model quoted less often and invented more of what it did quote. The plausible reading is
+that a stricter instruction pushes a 3B model toward paraphrase, and a paraphrase offered as
+a quotation is a fabrication. **Two things changed between these sweeps** — the prompt and a
+rebuilt index — so the cause is not isolated and is not claimed to be. What the comparison
+does establish is that misattribution held steady at about 18% either way: it is a property
+of naive chunking, not something a prompt or a retrieval improvement moves.
+
+**A prediction that failed, and what it cost to find out.** The first explanation for stage
+2's low excerpt validity was that its windows cross section boundaries. Tested per section —
+does any window attributed to this section cross a boundary — the answer was no: 44% valid
+for crossing sections against 42% for clean ones, indistinguishable. The hypothesis was
+right and the test was wrong. The effect is per *window*, not per section, and 342 of 465
+naive windows cross. Reading the failures individually showed it immediately:
+
+> `"cy. 52. The officer or other person making any arrest under this Code may take from the
+> person arrested any offensive weapons..."`
+
+`cy.` is the tail of *decency* from section 51. The window starts mid-word, runs through
+two boundaries, and the provision quoted is section 53, cited as 52. The model copied
+exactly what it was shown.
+
+**A check that came back negative, recorded because it nearly went in the other direction.**
+A chunking change has no effect until the index is rebuilt, and the indexes were rebuilt
+during this work — so part of what looks like a prompt improvement could have been a code
+fix finally reaching the index. It was not. The incremental update's dry run reported 37 of
+1598 chunks changed; had the index still held pre-refactor text, removing the inline heading
+would have changed all 1222 act chunks. The index was already current, and the improvement
+is attributable to the prompt and the rendering.
+
+**Where stage 4 is worse.** Citation precision falls from 66.3% to 59.1% and answer hit rate
+from 63.6% to 61.0% when the Penal Code and Schedule II join the corpus. Nearly a thousand
+additional chunks compete for the same eight retrieval slots, and some Code sections that
+were reaching the model no longer do. What is bought with that is the ability to answer
+offence-classification questions at all, a further fall in fabrication (17.2% to 12.5%), and
+the best refusal accuracy of any stage. Recorded as a trade rather than an improvement,
+because that is what it is, and act-aware ranking is the obvious response to it.

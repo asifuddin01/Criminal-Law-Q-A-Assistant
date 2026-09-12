@@ -10,8 +10,12 @@
   "retrieval_recall": 0.4545,
   "excerpt_validity": 0.9231,
   "excerpt_validity_unrepaired": 0.7538,
+  "misattribution_rate": 0.0077,
+  "fabrication_rate": 0.0692,
   "quotes_checked": 130,
   "quotes_repaired": 22,
+  "quotes_misattributed": 1,
+  "quotes_fabricated": 9,
   "refusal_accuracy": 0.6632,
   "refused_when_unanswerable": 0.5,
   "refused_when_answerable": 0.2987,
@@ -72,7 +76,7 @@
   "elapsed_seconds": 673.5,
   "cache_hits": 62,
   "partial": false,
-  "rescored_with": "2026-09-12-quoting",
+  "rescored_with": "2026-09-12-misattribution",
   "dataset_questions": 101,
   "missing_answers": 6
 }

@@ -281,6 +281,44 @@ The stage 1 baseline is not a formality. It is the control that makes the excerp
 meaningful: quoting from memory with no text in front of it, **not one of its quotations is
 real**, on either model. Every later stage is measured against that.
 
+Complete on the local model, 101 of 101 questions measured at every stage, one scorer over
+every run:
+
+| Stage | Retrieval recall | Citation precision | Answer hit rate | Excerpt validity | Refusal accuracy |
+|---|---|---|---|---|---|
+| 1 — LLM only | n/a | 6.9% | 1.3% | **0.0%** | 73.3% |
+| 2 — naive chunks | 63.6% | 61.2% | 48.0% | 42.9% | 90.1% |
+| 3 — legal-aware chunks | 80.5% | **66.3%** | **63.6%** | 77.4% | 88.1% |
+| 4 — full corpus + offence lookup | **81.8%** | 59.1% | 61.0% | **81.2%** | **90.1%** |
+
+![Evaluation metrics by stage](eval/runs/charts/metric-progression-qwen2-5-3b-instruct.png)
+
+A quotation that fails is two different failures, and they have opposite fixes. Real
+statutory text quoted under the wrong section is a chunking defect — a window that crosses a
+section boundary contains another section's words, and the model quotes it honestly. Text
+found in no section at all is the model writing law. Added together they hide each other:
+
+![Fabrication and misattribution by stage](eval/runs/charts/fabrication-qwen2-5-3b-instruct.png)
+
+| Stage | Verified | Real text, wrong section | In no section at all |
+|---|---|---|---|
+| 1 — LLM only | 0.0% | 0.0% | **100.0%** |
+| 2 — naive chunks | 42.9% | **18.6%** | 38.6% |
+| 3 — legal-aware chunks | 77.4% | **5.4%** | 17.2% |
+| 4 — full corpus | 81.2% | 6.2% | **12.5%** |
+
+Misattribution is what chunking on section boundaries fixes: 18.6% to 5.4%, from that one
+change. Fabrication is what retrieval fixes, falling at every stage from 100%.
+
+Stage 4 is recorded as a trade, not an improvement. Citation precision falls — a thousand
+more chunks compete for the same eight retrieval slots — and what is bought is the ability
+to answer offence-classification questions at all, the lowest fabrication rate of any stage,
+and the best refusal accuracy. Act-aware ranking is the obvious response and is not built.
+
+The hosted model (`openai/gpt-oss-120b`) has completed stages 1 and 2, quoting far more
+faithfully (92.3% excerpt validity against 42.9% at the same stage) and refusing far less
+readily. Stages 3 and 4 wait on the daily token budget.
+
 ## Limitations
 
 Stated now rather than discovered later.

@@ -1,32 +1,38 @@
 {
   "questions": 101,
-  "measured": 100,
-  "errors": 1,
-  "citations_made": 100,
+  "measured": 101,
+  "errors": 0,
+  "citations_made": 94,
   "citation_existence": 1.0,
   "hallucinated_citation_rate": 0.0,
-  "citation_precision": 0.7901,
-  "answer_hit_rate": 0.75,
-  "retrieval_recall": 0.8289,
-  "excerpt_validity": 0.5258,
-  "quotes_checked": 97,
-  "refusal_accuracy": 0.85,
-  "refused_when_unanswerable": 0.625,
-  "refused_when_answerable": 0.0789,
+  "citation_precision": 0.6627,
+  "answer_hit_rate": 0.6364,
+  "retrieval_recall": 0.8052,
+  "excerpt_validity": 0.7742,
+  "excerpt_validity_unrepaired": 0.6774,
+  "misattribution_rate": 0.0538,
+  "fabrication_rate": 0.172,
+  "quotes_checked": 93,
+  "quotes_repaired": 9,
+  "quotes_misattributed": 5,
+  "quotes_fabricated": 16,
+  "refusal_accuracy": 0.8812,
+  "refused_when_unanswerable": 0.6667,
+  "refused_when_answerable": 0.0519,
   "by_slice": {
     "direct_lookup": {
       "n": 45,
       "errors": 0,
-      "decided_correctly": 41,
+      "decided_correctly": 42,
       "with_correct_citation": 34,
       "measured": 45,
-      "refusal_accuracy": 0.9111
+      "refusal_accuracy": 0.9333
     },
     "multi_section": {
       "n": 12,
       "errors": 0,
       "decided_correctly": 12,
-      "with_correct_citation": 11,
+      "with_correct_citation": 7,
       "measured": 12,
       "refusal_accuracy": 1.0
     },
@@ -34,7 +40,7 @@
       "n": 10,
       "errors": 0,
       "decided_correctly": 10,
-      "with_correct_citation": 9,
+      "with_correct_citation": 7,
       "measured": 10,
       "refusal_accuracy": 1.0
     },
@@ -49,26 +55,28 @@
     "ambiguous": {
       "n": 9,
       "errors": 0,
-      "decided_correctly": 1,
+      "decided_correctly": 2,
       "with_correct_citation": 0,
       "measured": 9,
-      "refusal_accuracy": 0.1111
+      "refusal_accuracy": 0.2222
     },
     "bangla": {
       "n": 10,
-      "errors": 1,
-      "decided_correctly": 7,
-      "with_correct_citation": 3,
-      "measured": 9,
-      "refusal_accuracy": 0.7778
+      "errors": 0,
+      "decided_correctly": 9,
+      "with_correct_citation": 1,
+      "measured": 10,
+      "refusal_accuracy": 0.9
     }
   },
   "stage": 3,
   "system": "rag-legal-chunks",
   "provider": "ollama",
   "model": "qwen2.5:3b-instruct",
-  "elapsed_seconds": 484.4,
-  "cache_hits": 93,
+  "elapsed_seconds": 512.0,
+  "cache_hits": 95,
+  "partial": false,
+  "rescored_with": "2026-09-12-misattribution",
   "dataset_questions": 101,
-  "partial": false
+  "missing_answers": 0
 }

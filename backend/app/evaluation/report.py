@@ -88,6 +88,22 @@ def group_by_model(runs: list[dict]) -> dict[str, list[dict]]:
     }
 
 
+def _dataset_note(runs: list[dict]) -> str:
+    """How many questions these stages actually share.
+
+    Derived, not written down. The caption said "same 95 questions throughout"
+    while the per-stage labels underneath it said 101 — the gold set had grown and
+    the literal had not, which is the one part of a chart a reader takes on trust.
+    """
+    sizes = {r.get("dataset_questions") or r["questions"] for r in runs}
+    measured = {r["measured"] for r in runs}
+    if len(sizes) == 1 and len(measured) == 1:
+        return f"same {sizes.pop()} questions throughout, all measured"
+    if len(sizes) == 1:
+        return f"the same {sizes.pop()} questions at every stage"
+    return "question counts differ between stages — see the labels below"
+
+
 def chart_progression(runs: list[dict], *, model: str = "") -> pathlib.Path:
     """Headline metrics across stages — the closest thing this project has to a
     training curve, and the chart the report should lead with."""
@@ -122,7 +138,7 @@ def chart_progression(runs: list[dict], *, model: str = "") -> pathlib.Path:
     ax.set_ylabel("percent")
     subtitle = f" — {model}" if model else ""
     ax.set_title(
-        f"Evaluation metrics by stage{subtitle}\nsame 95 questions throughout",
+        f"Evaluation metrics by stage{subtitle}\n{_dataset_note(runs)}",
         color=INK,
         fontsize=12,
         pad=14,
