@@ -15,6 +15,8 @@ says so rather than producing one.
 
 ## Status
 
+**Live demo: [huggingface.co/spaces/asifuddin01/criminal-law-qa-bangladesh](https://huggingface.co/spaces/asifuddin01/criminal-law-qa-bangladesh)**
+
 Complete and measured end to end on the local model; the hosted model has completed stages 1
 and 2 and is rate-limited beyond that. This table is the honest state of the repository, not
 a roadmap.
@@ -35,6 +37,43 @@ a roadmap.
 | Image input | Working — local OCR (tesseract, English + Bengali) |
 | Document upload | Working — PDF and text, never treated as law |
 | Amendment provenance | Working — every citation carries how and when the section changed |
+| Deployment | **Live** — [Hugging Face Space](https://huggingface.co/spaces/asifuddin01/criminal-law-qa-bangladesh) |
+
+## What was asked for, and what this does
+
+Everything the brief required, including all three optional inputs.
+
+| Required | Where it is |
+|---|---|
+| Q&A over a Bangladeshi legal corpus | CrPC 1898, its Schedule II, and the Penal Code 1860 |
+| Answers grounded in retrieved text | Nothing is answered without retrieval; stage 1 exists to show the difference |
+| Section-level citations | With verbatim excerpts, each checked against the source before display |
+| Refuse when unsupported | A first-class outcome with its own metric — 90.1% refusal accuracy at stage 4 |
+| Evaluation | 101 questions, six runs, one scorer over all of them |
+| Documentation of approach | This file, [EXPERIMENTS.md](EXPERIMENTS.md), 11 [ADRs](docs/adr/), [AI_USAGE.md](AI_USAGE.md) |
+| *Optional:* image input | tesseract OCR, English + Bengali |
+| *Optional:* speech input | `whisper-large-v3`, English and Bangla |
+| *Optional:* document upload | PDF and text, never treated as law |
+| *Optional:* demo video **or** deployment | [Live Space](https://huggingface.co/spaces/asifuddin01/criminal-law-qa-bangladesh) |
+
+### Beyond the brief
+
+Each of these exists because something measurable went wrong without it.
+
+| Addition | Why |
+|---|---|
+| Staged evaluation, one variable per stage | A number only means something against the stage before it. |
+| LLM-only baseline as a control | 143 quotations, 143 fabricated — that is what the citation check is worth. |
+| Misattribution told apart from fabrication | Real text under the wrong section is a chunking bug; invented text is a model bug. |
+| Two excerpt-validity rates published | Publishing the strict one means nobody has to trust my allowances. |
+| Structured Schedule II lookup | "Is theft bailable?" embeds near the sections *about* bail; the row that answers it ranks nowhere. |
+| Document roles ([ADR 0006](docs/adr/0006-document-roles-separate-operative-law-from-amending-instruments.md)) | An amending act's text is a diff, not a provision — it must never answer as law. |
+| Amendment provenance on every citation | Section 54 was substituted in force from 10 August 2025; the current wording does not say so. |
+| Incremental index updates | A corpus you must rebuild in full is a corpus nobody updates. |
+| Bangla translation, excerpts left in English | A translated "verbatim quote" is no longer verbatim. |
+| Rate-limit handling that waits or switches | A half-finished sweep biases whichever slices come last and still looks like a result. |
+| [`rescore`](backend/app/evaluation/rescore.py) | Correcting the scorer should not cost a hosted budget to re-measure text that has not changed. |
+| Generated screenshots | A screenshot nobody can reproduce is a claim about a version that no longer exists. |
 
 ## What it looks like
 
