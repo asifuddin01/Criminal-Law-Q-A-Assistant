@@ -76,27 +76,52 @@ from fastapi import FastAPI  # noqa: E402
 from app.api.routes import router as api_router  # noqa: E402
 from app.legal import DISCLAIMER  # noqa: E402
 from app.qa.validation import validate  # noqa: E402
-from app.services import get_corpora, get_qa, get_schedule, warm  # noqa: E402
+from app.qa.failures import explain  # noqa: E402
+from app.services import (  # noqa: E402
+    get_corpora,
+    get_qa,
+    get_schedule,
+    local_provider_reachable,
+    warm,
+)
 
 
-async def answer_question(question: str) -> str:
-    """The same pipeline the API uses, rendered as Markdown.
+HOSTED_LABEL = "Hosted — openai/gpt-oss-120b"
+LOCAL_LABEL = "Local — qwen2.5:3b-instruct"
+
+# Asked once at startup rather than assumed: a Hugging Face Space cannot run
+# Ollama, and an interface offering a switch to a model that is not there is
+# worse than one offering no switch at all.
+LOCAL_AVAILABLE = local_provider_reachable()
+PROVIDERS = {HOSTED_LABEL: "groq"}
+if LOCAL_AVAILABLE:
+    PROVIDERS[LOCAL_LABEL] = "ollama"
+
+
+async def answer_question(question: str, provider_label: str | None = None) -> str:
+    """Answer through the chosen provider, rendered as Markdown.
 
     Deliberately not a reimplementation: retrieval, generation and the citation
-    gate are the ones in app/, so this cannot drift into answering differently
-    from the real interface.
+    gate are the ones in app/, so this interface cannot drift into answering
+    differently from the API beside it.
     """
     question = (question or "").strip()
     if not question:
         return "Ask a question about the Code of Criminal Procedure."
 
+    provider = PROVIDERS.get(provider_label or HOSTED_LABEL, "groq")
+
     try:
-        answer = await get_qa().answer(question)
-    except Exception as exc:  # noqa: BLE001 — surfaced to the user, not swallowed
-        return f"**Unavailable.** {exc}"
+        answer = await get_qa(provider).answer(question)
+    except Exception as exc:  # noqa: BLE001 — surfaced to the reader, not swallowed
+        _, detail = explain(str(exc), local_available=LOCAL_AVAILABLE)
+        return f"**Unavailable.** {detail}"
 
     if answer.error:
-        return f"**Unavailable.** {answer.error}"
+        # The same wording the API returns for the same condition. This printed
+        # the provider's raw 429 until someone looked at the deployed demo.
+        _, detail = explain(answer.error, local_available=LOCAL_AVAILABLE)
+        return f"**Unavailable.** {detail}"
 
     result = validate(answer, get_corpora(), schedule=get_schedule())
     if result.refused:
@@ -120,26 +145,6 @@ async def answer_question(question: str) -> str:
             lines.append(f"[Read it on bdlaws.minlaw.gov.bd]({citation.source_url})")
         lines.append("")
     return "\n".join(lines)
-
-
-if spaces is not None:
-
-    @spaces.GPU(duration=1)
-    def _zerogpu_probe() -> str:
-        """Declared because ZeroGPU will not start a Space without one.
-
-        `No @spaces.GPU function detected during startup` is a hard failure, and
-        this account's free tier offers ZeroGPU and nothing else — CPU basic
-        needs a subscription. So the decorator has to exist.
-
-        It is never called, and that is not a workaround so much as the honest
-        answer: there is no GPU work here. Retrieval embeds one short query with
-        an ONNX model where a host-to-device transfer would cost more than the
-        arithmetic it saves, and the language model is an HTTP request to
-        somebody else's accelerator. The Space runs on the CPU it is given and
-        consumes none of the shared GPU pool it is admitted to.
-        """
-        return "ok"
 
 
 EXAMPLES = [
@@ -166,12 +171,28 @@ with gr.Blocks(title="Criminal Law Q&A — Bangladesh") as demo:
         placeholder="Ask about arrest, bail, investigation, or an offence by name",
         lines=2,
     )
+
+    model = gr.Radio(
+        choices=list(PROVIDERS),
+        value=HOSTED_LABEL,
+        label="Model",
+        info=(
+            "The hosted model shares a free daily allowance. The local one is "
+            "free and unmetered, and materially weaker — its Bangla in "
+            "particular is not good."
+            if LOCAL_AVAILABLE
+            else "This deployment has no local model: a Hugging Face Space "
+            "cannot run Ollama. Running the project locally offers both."
+        ),
+        interactive=LOCAL_AVAILABLE,
+    )
+
     ask = gr.Button("Ask", variant="primary")
     gr.Examples(examples=EXAMPLES, inputs=question, label="Try one")
     answer = gr.Markdown(label="Answer")
 
-    ask.click(answer_question, question, answer)
-    question.submit(answer_question, question, answer)
+    ask.click(answer_question, [question, model], answer)
+    question.submit(answer_question, [question, model], answer)
 
     gr.Markdown(
         "The interface shipped with the project is a Next.js application; it is in "

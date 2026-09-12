@@ -103,15 +103,38 @@ def get_lookup() -> ScheduleLookup:
     return ScheduleLookup(get_schedule())
 
 
-@lru_cache(maxsize=1)
-def get_qa() -> RetrievalQA:
+@lru_cache(maxsize=2)
+def get_qa(provider: str | None = None) -> RetrievalQA:
+    """The answering system, optionally on a named provider.
+
+    The default is the configured one. Naming a provider lets an interface offer
+    the choice — a local model is free and unmetered where one is running, which
+    is what a spent hosted allowance leaves you. It is cached per provider, so
+    switching back and forth does not rebuild the index.
+    """
     return RetrievalQA(
-        get_provider(),
+        get_provider(provider),
         get_index(),
         name="rag-legal-chunks",
         k=get_settings().retrieval_k,
         lookup=get_lookup(),
     )
+
+
+def local_provider_reachable(timeout: float = 1.5) -> bool:
+    """Whether an Ollama server is actually answering, right now.
+
+    Asked rather than assumed. A hosted deployment has no local model — a
+    Hugging Face Space cannot run Ollama — and an interface that offers a switch
+    to something that is not there is worse than one that offers no switch.
+    """
+    import httpx
+
+    base = get_settings().ollama_base_url.rstrip("/").removesuffix("/v1")
+    try:
+        return httpx.get(f"{base}/api/tags", timeout=timeout).status_code == 200
+    except Exception:  # noqa: BLE001 — unreachable is the answer, not an error
+        return False
 
 
 def warm() -> dict[str, str]:

@@ -136,13 +136,21 @@ def test_a_spent_daily_allowance_reads_as_a_limit_not_a_crash():
     assert "citation checks" in daily.detail
 
 
-def test_an_ordinary_provider_failure_is_still_a_502():
+def test_an_unreachable_model_is_a_503_and_an_unexpected_one_is_a_502():
+    """The two are different things and a client can act differently on them.
+
+    Unreachable is temporary and worth retrying; an upstream that answered with
+    something unexpected is not.
+    """
     from app.api.routes import _provider_error
 
-    other = _provider_error("connection reset by peer")
+    unreachable = _provider_error("connection reset by peer")
+    assert unreachable.status_code == 503
+    assert "connection reset" in unreachable.detail
 
-    assert other.status_code == 502
-    assert "connection reset" in other.detail
+    unexpected = _provider_error("model returned an unparseable response")
+    assert unexpected.status_code == 502
+    assert "unparseable" in unexpected.detail
 
 
 def test_the_embedding_cache_location_can_be_set(monkeypatch, tmp_path):
