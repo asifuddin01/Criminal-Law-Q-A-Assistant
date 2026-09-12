@@ -29,7 +29,8 @@ official text published by the Ministry of Law, Justice and Parliamentary Affair
 - *When may a police officer arrest a person without a warrant?* — returns section 54,
   with the note that it was substituted by Act XI of 2026 with effect from 10 August 2025
 - *Is theft a bailable offence?* — answered from the Schedule II row for Penal Code
-  section 379, looked up by offence name rather than retrieved
+  section 379, looked up by offence name rather than retrieved, with the row's own columns
+  shown beside the excerpt
 - *পুলিশ কখন বিনা পরোয়ানায় গ্রেপ্তার করতে পারে?* — Bangla question, English corpus,
   answer translatable on demand with the statutory excerpts left in English
 - Something the corpus does not cover — the system should decline and say what it would

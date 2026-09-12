@@ -85,6 +85,7 @@ from app.legal import DISCLAIMER  # noqa: E402
 from app.qa.validation import validate  # noqa: E402
 from app.qa.failures import explain  # noqa: E402
 from app.services import (  # noqa: E402
+    describe_local_model,
     get_corpora,
     get_qa,
     get_schedule,
@@ -154,6 +155,28 @@ def local_status() -> str:
 
 def local_usable() -> bool:
     return LOCAL_AVAILABLE or (LOCAL is not None and LOCAL.ready)
+
+
+def _local_note() -> str:
+    """What /api/meta should say while the local model is not answering yet.
+
+    Without this the interface reports "no Ollama server is reachable from this
+    deployment" for the first several minutes of every cold start — true, and
+    useless to a visitor who cannot start one and is not being told that one is
+    on its way.
+    """
+    status = local_status()
+    if status == "disabled":
+        return "this deployment runs without a local model"
+    return (
+        f"{status} — a Space has no persistent storage, so 3.3 GB of runtime and "
+        "weights is fetched on every cold start. It answers on two shared vCPUs "
+        "once it arrives; the hosted model answers now."
+    )
+
+
+# The API serves the interface here, so it is the API that has to explain this.
+describe_local_model(_local_note)
 
 
 async def answer_question(question: str, provider_label: str | None = None) -> str:
@@ -369,7 +392,11 @@ def _serve_frontend(server: FastAPI) -> None:
     deployment that ships without one still has an interface.
     """
     index = WEB / "index.html"
-    if not index.exists():
+    assets = WEB / "_next"
+    # Both, because StaticFiles raises on a missing directory and it would raise
+    # here — inside the call that builds the server, before anything is serving.
+    # An incomplete export should cost the page it shipped, not the Space.
+    if not (index.exists() and assets.is_dir()):
         print("web: absent, Gradio's interface serves the root", flush=True)
         return
 

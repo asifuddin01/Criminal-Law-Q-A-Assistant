@@ -337,6 +337,12 @@ export default function Page() {
     meta?.providers?.find((p) => p.name === provider)?.model ??
     meta?.provider.chat_model;
 
+  // Why a model in the toggle is greyed out. The deployment says so — on a Space
+  // the local model is being fetched rather than missing, and the difference is
+  // the whole of what a visitor needs to know.
+  const modelNote =
+    meta?.providers?.find((p) => !p.available && p.note)?.note ?? "";
+
   return (
     <main className="shell">
       <header>
@@ -451,6 +457,7 @@ export default function Page() {
             {activeModel && ` · ${activeModel}`}
           </span>
         </div>
+        {modelNote && <p className="model-note">{modelNote}</p>}
         {document_ && (
           <div className="attached">
             <div>

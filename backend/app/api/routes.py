@@ -40,6 +40,7 @@ from app.services import (
     get_corpora,
     get_qa,
     get_schedule,
+    local_model_note,
     local_provider_reachable,
     transcription_provider,
 )
@@ -139,6 +140,11 @@ def _provider_choices(settings) -> list[ProviderChoice]:
     something absent is worse than one offering no switch.
     """
     local_up = local_provider_reachable()
+    # A deployment that fetches its own local model says so; everything else
+    # falls back to the plain fact that nothing is listening.
+    local_note = local_model_note() or (
+        "no Ollama server is reachable from this deployment"
+    )
     return [
         ProviderChoice(
             name="groq",
@@ -152,7 +158,7 @@ def _provider_choices(settings) -> list[ProviderChoice]:
             label="Local",
             model=settings.ollama_chat_model,
             available=local_up,
-            note="" if local_up else "no Ollama server is reachable from this deployment",
+            note="" if local_up else local_note,
         ),
     ]
 

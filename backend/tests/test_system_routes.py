@@ -92,6 +92,39 @@ def test_asking_an_unavailable_model_is_refused_with_the_reason(monkeypatch):
     assert "no Ollama server is reachable" in response.json()["detail"]
 
 
+def test_a_deployment_can_say_why_its_local_model_is_not_answering(monkeypatch):
+    """A Space fetches 3.3 GB on every cold start, and for the first minutes of
+    one the local model is absent rather than missing. "No Ollama server is
+    reachable" is true throughout that and tells a visitor nothing: they cannot
+    start one, and nobody has told them one is coming."""
+    from app.api import routes
+    from app import services
+
+    monkeypatch.setattr(routes, "local_provider_reachable", lambda: False)
+    monkeypatch.setattr(services, "_describe_local", lambda: "still arriving — 41%")
+
+    client = TestClient(create_app())
+    body = client.get("/api/meta").json()
+    local = next(p for p in body["providers"] if p["name"] == "ollama")
+
+    assert local["available"] is False
+    assert local["note"] == "still arriving — 41%"
+
+
+def test_without_one_the_plain_fact_is_reported(monkeypatch):
+    from app.api import routes
+    from app import services
+
+    monkeypatch.setattr(routes, "local_provider_reachable", lambda: False)
+    monkeypatch.setattr(services, "_describe_local", None)
+
+    client = TestClient(create_app())
+    body = client.get("/api/meta").json()
+    local = next(p for p in body["providers"] if p["name"] == "ollama")
+
+    assert "no Ollama server is reachable" in local["note"]
+
+
 def test_asking_an_unknown_model_is_a_422():
     client = TestClient(create_app())
     response = client.post(

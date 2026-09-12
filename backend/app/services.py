@@ -8,6 +8,7 @@ dependency injection rather than being constrained by it.
 
 from __future__ import annotations
 
+from collections.abc import Callable
 from functools import lru_cache
 
 from app.config import get_settings
@@ -148,6 +149,38 @@ def transcription_provider():
         if provider.supports(Capability.TRANSCRIPTION):
             return provider
     return None
+
+
+# How this deployment's local model is doing, when the deployment is the thing
+# fetching it. Left unset everywhere else, which is the ordinary case: a local
+# model is either running on the machine or it is not.
+_describe_local: Callable[[], str] | None = None
+
+
+def describe_local_model(describe: Callable[[], str] | None) -> None:
+    """Register a description of the local model's state, shown by /api/meta.
+
+    A Space has no persistent storage, so it downloads 3.3 GB of runtime and
+    weights on every cold start and the model is genuinely absent for the first
+    few minutes. "No Ollama server is reachable" is true throughout that and
+    tells a visitor nothing they can act on — they cannot start one, and the
+    honest answer is that it is on its way.
+
+    The deployment knows this; the API does not, and should not have to import a
+    Space's downloader to find out. Pass None to clear.
+    """
+    global _describe_local
+    _describe_local = describe
+
+
+def local_model_note() -> str:
+    """What to say about a local model that is not answering yet."""
+    if _describe_local is None:
+        return ""
+    try:
+        return _describe_local()
+    except Exception:  # noqa: BLE001 — an explanation is not worth an error
+        return ""
 
 
 def local_provider_reachable(timeout: float = 1.5) -> bool:
