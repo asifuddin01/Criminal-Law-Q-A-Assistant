@@ -63,3 +63,56 @@ def test_vision_is_declared_when_a_vision_model_is_configured(monkeypatch):
     body = TestClient(create_app()).get("/api/meta").json()
 
     assert "vision" in body["provider"]["capabilities"]
+
+
+def test_meta_lists_which_models_can_actually_answer():
+    client = TestClient(create_app())
+    """The interface reads this instead of assuming a local model exists."""
+    body = client.get("/api/meta").json()
+
+    names = {p["name"] for p in body["providers"]}
+    assert names == {"groq", "ollama"}
+    for choice in body["providers"]:
+        # An unavailable model says why, so the interface can show a reason
+        # rather than a disabled control with no explanation.
+        assert choice["available"] or choice["note"]
+
+
+def test_asking_an_unavailable_model_is_refused_with_the_reason(monkeypatch):
+    client = TestClient(create_app())
+    from app.api import routes
+
+    monkeypatch.setattr(routes, "local_provider_reachable", lambda: False)
+    response = client.post(
+        "/api/ask",
+        json={"question": "Is theft a bailable offence?", "provider": "ollama"},
+    )
+
+    assert response.status_code == 503
+    assert "no Ollama server is reachable" in response.json()["detail"]
+
+
+def test_asking_an_unknown_model_is_a_422():
+    client = TestClient(create_app())
+    response = client.post(
+        "/api/ask",
+        json={"question": "Is theft a bailable offence?", "provider": "nope"},
+    )
+
+    assert response.status_code == 422
+
+
+def test_the_answer_cache_distinguishes_models():
+    """Regression class. Two models answering one question are two answers.
+
+    The key carries the model name, so switching providers cannot serve what the
+    other one said — the same defect that made the evaluation cache serve an old
+    prompt's answers as a new prompt's.
+    """
+    from app.api.limits import AnswerCache
+
+    question = "Is theft a bailable offence?"
+    hosted = AnswerCache.key(question, model="openai/gpt-oss-120b", index="i")
+    local = AnswerCache.key(question, model="qwen2.5:3b-instruct", index="i")
+
+    assert hosted != local

@@ -101,6 +101,10 @@ export default function Page() {
   const [meta, setMeta] = useState<Meta | null>(null);
   const [result, setResult] = useState<AskResponse | null>(null);
   const [error, setError] = useState<string | null>(null);
+  // Which model answers. Null means the deployment's default, until /api/meta
+  // says what is actually available — a hosted deployment usually has no local
+  // model, and the control must not offer one that is not there.
+  const [provider, setProvider] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [translation, setTranslation] = useState<Translation | null>(null);
   const [translating, setTranslating] = useState(false);
@@ -139,6 +143,7 @@ export default function Page() {
             question: trimmed,
             language: "en",
             document_id: document_?.document_id ?? null,
+            provider,
           }),
         });
         const body = await response.json();
@@ -155,7 +160,11 @@ export default function Page() {
         setBusy(false);
       }
     },
-    [busy, document_],
+    // `provider` belongs here. Without it the callback closes over the value at
+    // the time it was created, and the request goes to whichever model was
+    // selected when the page loaded — the toggle moves, the label updates, and
+    // the question is still answered by the old model.
+    [busy, document_, provider],
   );
 
   const toggleTranslation = useCallback(async () => {
@@ -306,6 +315,10 @@ export default function Page() {
 
   const disclaimer = result?.disclaimer ?? meta?.disclaimer;
 
+  const activeModel =
+    meta?.providers?.find((p) => p.name === provider)?.model ??
+    meta?.provider.chat_model;
+
   return (
     <main className="shell">
       <header>
@@ -395,9 +408,29 @@ export default function Page() {
                   : "🎙 Speak"}
             </button>
           )}
+          {(meta?.providers?.length ?? 0) > 0 && (
+            <div className="models" role="group" aria-label="Model">
+              {meta!.providers.map((choice) => (
+                <button
+                  key={choice.name}
+                  type="button"
+                  className={`model ${provider === choice.name ? "on" : ""}`}
+                  onClick={() => setProvider(choice.name)}
+                  disabled={!choice.available}
+                  title={
+                    choice.available
+                      ? `${choice.label} — ${choice.model}`
+                      : `${choice.label} unavailable: ${choice.note}`
+                  }
+                >
+                  {choice.label}
+                </button>
+              ))}
+            </div>
+          )}
           <span className="hint">
             ⌘/Ctrl + Enter
-            {meta && ` · ${meta.provider.chat_model}`}
+            {activeModel && ` · ${activeModel}`}
           </span>
         </div>
         {document_ && (

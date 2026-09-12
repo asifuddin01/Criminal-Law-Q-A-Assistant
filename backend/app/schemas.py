@@ -23,6 +23,16 @@ class ProviderInfo(BaseModel):
     )
 
 
+class ProviderChoice(BaseModel):
+    """A model the deployment can actually answer with."""
+
+    name: str = Field(description="'groq' or 'ollama'")
+    label: str = Field(description="How to show it to a reader")
+    model: str
+    available: bool
+    note: str = Field(default="", description="Why it is unavailable, when it is")
+
+
 class MetaResponse(BaseModel):
     """What the deployed system is and what it can currently do.
 
@@ -33,6 +43,15 @@ class MetaResponse(BaseModel):
     app_name: str
     version: str
     provider: ProviderInfo
+    providers: list[ProviderChoice] = Field(
+        default_factory=list,
+        description=(
+            "Every model this deployment can answer with. The interface reads this "
+            "rather than assuming: a hosted deployment usually has no local model, "
+            "and offering a switch to one that is not there is worse than offering "
+            "no switch."
+        ),
+    )
     features: list[str] = Field(
         default_factory=list,
         description=(
@@ -57,6 +76,14 @@ class AskRequest(BaseModel):
     )
     language: str = Field(
         default="en", description="ISO code of the question's language; 'bn' for Bangla"
+    )
+    provider: str | None = Field(
+        default=None,
+        description=(
+            "Which model answers: 'groq' for the hosted one, 'ollama' for a local "
+            "one. Omitted means the deployment's default. Only providers listed in "
+            "/api/meta as available will answer."
+        ),
     )
 
 

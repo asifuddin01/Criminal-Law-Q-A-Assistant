@@ -348,3 +348,37 @@ button.ghost.recording {
   color: var(--muted, #6b6b66);
   font-variant-numeric: tabular-nums;
 }
+
+/* Model choice. A segmented pair rather than a dropdown: there are two, and
+   which one answered is worth seeing without opening anything. An unavailable
+   model stays visible but disabled, with the reason in its tooltip — hiding it
+   would leave a reader wondering whether the feature exists. */
+.models {
+  display: inline-flex;
+  border: 1px solid var(--rule, #d8d8d2);
+  border-radius: 5px;
+  overflow: hidden;
+}
+
+.models .model {
+  border: 0;
+  background: transparent;
+  color: var(--muted, #6b6b66);
+  font-size: 0.78rem;
+  padding: 0.28rem 0.6rem;
+  cursor: pointer;
+}
+
+.models .model + .model {
+  border-left: 1px solid var(--rule, #d8d8d2);
+}
+
+.models .model.on {
+  background: var(--accent-soft, #2a2a26);
+  color: var(--ink, #f2f2ee);
+}
+
+.models .model:disabled {
+  cursor: not-allowed;
+  opacity: 0.45;
+}

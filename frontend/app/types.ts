@@ -48,9 +48,18 @@ export interface Meta {
     capabilities: string[];
     reachable: boolean | null;
   };
+  providers: ProviderChoice[];
   features: string[];
   disclaimer: string;
   source_attribution: string;
+}
+
+export interface ProviderChoice {
+  name: string;
+  label: string;
+  model: string;
+  available: boolean;
+  note: string;
 }
 
 export interface ImageText {

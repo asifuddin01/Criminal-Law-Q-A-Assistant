@@ -28,6 +28,7 @@ from app.schemas import (
     HealthResponse,
     ImageTextResponse,
     MetaResponse,
+    ProviderChoice,
     ProviderInfo,
     TranscriptionResponse,
     TranslateRequest,
@@ -118,10 +119,37 @@ async def meta(
         app_name=settings.app_name,
         version=__version__,
         provider=info,
+        providers=_provider_choices(settings),
         features=sorted(features),
         disclaimer=DISCLAIMER,
         source_attribution=SOURCE_ATTRIBUTION,
     )
+
+
+def _provider_choices(settings) -> list[ProviderChoice]:
+    """Which models this deployment can actually answer with.
+
+    Availability is asked, not assumed. The hosted model needs a key; the local
+    one needs a server that is running. An interface offering a switch to
+    something absent is worse than one offering no switch.
+    """
+    local_up = local_provider_reachable()
+    return [
+        ProviderChoice(
+            name="groq",
+            label="Hosted",
+            model=settings.groq_chat_model,
+            available=bool(settings.groq_api_key),
+            note="" if settings.groq_api_key else "no API key is configured",
+        ),
+        ProviderChoice(
+            name="ollama",
+            label="Local",
+            model=settings.ollama_chat_model,
+            available=local_up,
+            note="" if local_up else "no Ollama server is reachable from this deployment",
+        ),
+    ]
 
 
 @router.post("/ask", response_model=AskResponse, tags=["qa"])
@@ -152,7 +180,23 @@ async def ask(request: AskRequest, http_request: Request) -> AskResponse:
     try:
         corpora = get_corpora()
         schedule = get_schedule()
-        system = get_qa()
+        # The caller may name a model; an unavailable one is refused here rather
+        # than failing later with a connection error the reader cannot act on.
+        chosen = request.provider
+        if chosen:
+            choice = next(
+                (c for c in _provider_choices(get_settings()) if c.name == chosen), None
+            )
+            if choice is None:
+                raise HTTPException(
+                    status_code=422, detail=f"unknown provider: {chosen}"
+                )
+            if not choice.available:
+                raise HTTPException(
+                    status_code=503,
+                    detail=f"the {choice.label.lower()} model is unavailable: {choice.note}",
+                )
+        system = get_qa(chosen)
     except CorpusUnavailable as exc:
         raise HTTPException(status_code=503, detail=str(exc)) from exc
     except RuntimeError as exc:
