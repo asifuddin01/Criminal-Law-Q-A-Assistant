@@ -47,6 +47,18 @@ os.environ.setdefault(
     str(pathlib.Path.home() / ".cache" / "huggingface" / "hub"),
 )
 
+# Gradio 6 renders server-side by default on Spaces, which puts a Node proxy on
+# the public port and forwards only Gradio's own routes to Python behind it. This
+# application's routes live on the Python app, so SSR makes every one of them
+# unreachable: the deployed Space answered /api/meta with Gradio's page while the
+# mounts existed and had already logged their startup, which is a difficult thing
+# to diagnose from outside and took the container log to see.
+#
+# Assignment rather than setdefault: the platform sets this to true, and this has
+# to override it. `launch(ssr_mode=None)` reads the variable, and the platform is
+# the one calling launch.
+os.environ["GRADIO_SSR_MODE"] = "false"
+
 import gradio as gr  # noqa: E402
 
 try:  # Present on a Space, absent when this file is run locally.

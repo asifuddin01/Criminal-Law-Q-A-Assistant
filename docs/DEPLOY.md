@@ -87,6 +87,17 @@ exported frontend at `/`, replacing Gradio's index. Gradio's internals — asset
 queue — are left alone, so the fallback interface still works. This happens whoever calls
 launch, which is the point.
 
+**Server-side rendering has to be off.** Gradio 6 renders server-side by default on Spaces,
+which puts a Node proxy on the public port and forwards only Gradio's own routes to the
+Python process behind it — the startup log says so plainly once you look:
+`Running on local URL: http://0.0.0.0:7860, with SSR ⚡ (Node proxy -> Python :7861)`.
+
+Every route this application adds lives on the Python app, so SSR makes all of them
+unreachable while looking completely healthy: the Space answered `/api/meta` with Gradio's
+page *after* the mounts had been added and had logged their own startup. `space_app.py`
+therefore sets `GRADIO_SSR_MODE=false` before importing Gradio — by assignment, since the
+platform sets it true and this has to override it.
+
 The API is **mounted**, not included with `include_router`. Modern FastAPI's
 `include_router` appends a lazy marker resolved when the app builds its route table, and by
 that point Gradio has already launched and built it: the routes are added and never appear.
