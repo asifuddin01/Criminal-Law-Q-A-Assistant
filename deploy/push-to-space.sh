@@ -85,6 +85,18 @@ print(f"    ok — sdk={fields.get('sdk')} app_file={fields.get('app_file')} "
       f"short_description={len(fields.get('short_description', ''))} chars")
 PYCHECK
 
+# Invariants the deployment depends on and nothing else imports: the GPU
+# declaration ZeroGPU demands, SSR disabled, the API mounted rather than
+# included. Each corresponds to a Space that failed to start, and the last one
+# reached the platform because these were checked by a test nobody ran before
+# uploading. A hundredth of a second here.
+echo "==> checking the Space entrypoint"
+(cd backend && uv run pytest tests/test_space_entrypoint.py -q --no-header 2>&1 | tail -1)
+(cd backend && uv run pytest tests/test_space_entrypoint.py -q >/dev/null 2>&1) || {
+    echo "the Space entrypoint is not deployable; not pushing" >&2
+    exit 1
+}
+
 echo "==> precomputing the Schedule II parse"
 # 48 seconds of PDF parsing that would otherwise run on every cold start, and a
 # Gradio Space has no build step in which to do it.
