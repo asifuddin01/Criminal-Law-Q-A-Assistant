@@ -120,7 +120,8 @@ cp data/parsed/schedule-ii.json "$STAGE/data/parsed/"
 cp -R data/index/legal_aware_schedule "$STAGE/data/index/"
 
 # What the Space itself needs at its root.
-cp deploy/space/space_app.py deploy/space/requirements.txt deploy/space/packages.txt "$STAGE/"
+cp deploy/space/space_app.py deploy/space/local_model.py \
+   deploy/space/requirements.txt deploy/space/packages.txt "$STAGE/"
 cp deploy/space-readme.md "$STAGE/README.md"
 
 cd "$STAGE"

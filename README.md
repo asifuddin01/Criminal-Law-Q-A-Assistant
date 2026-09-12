@@ -250,6 +250,14 @@ container on one port. Steps, limits and the local `docker run`:
 
 The API key goes in the host's own secrets page, never in the repository.
 
+**What the free tier costs, stated up front:** the Space runs under the `gradio` SDK on
+ZeroGPU because Docker and CPU-basic both need a subscription, so the public interface is
+Gradio's rather than the Next.js application; one shared token allowance is about 60
+questions a day before it says so and recovers; and the optional local model is re-fetched
+on every cold start — 3.3 GB — then answers in minutes on two shared vCPUs. The full table
+is in [docs/DEPLOY.md](docs/DEPLOY.md). None of it affects the evaluation, which runs
+locally.
+
 Docker Spaces, and on some accounts CPU-basic hardware, are gated behind a paid tier, so the
 Space runs under the `gradio` SDK on ZeroGPU hardware — which allocates a GPU only inside
 `@spaces.GPU` calls, and this application never makes one — which serves this project's own FastAPI application rather than a Gradio

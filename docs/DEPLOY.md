@@ -160,6 +160,29 @@ In the Space's **Settings → Variables and secrets**, add a secret named `GROQ_
 Do this there, not in the repository. A key in a commit is a key you have to rotate, and it
 stays in the history after you delete it.
 
+## The free tier, and what it costs
+
+Everything below is a consequence of deploying on a free tier, stated so nobody has to
+discover it by using the demo.
+
+| Constraint | Consequence |
+|---|---|
+| Docker SDK requires a paid tier on this account | The Space runs under the `gradio` SDK, so the interface is Gradio's rather than the project's Next.js application. |
+| CPU-basic hardware requires a subscription | The Space runs on **ZeroGPU**, which refuses to start without a `@spaces.GPU` function — one is declared and never called, because there is no GPU work here. |
+| One shared free-tier token allowance | About **60 questions a day** across everyone using the link, at roughly 3,000 tokens each. When it is spent the app says so and recovers on its own; repeat questions are served from cache and cost nothing. |
+| No persistent storage | The local model is re-fetched on every cold start — **1.4 GB** of Ollama runtime plus **1.9 GB** of weights. |
+| Two shared vCPUs | The local model answers in **minutes**, not seconds. It is a fallback for a spent allowance, not a comfortable default. |
+| The Space sleeps when idle | The first request after a quiet period waits about **21 seconds** for the container and corpus to load. |
+
+**The local model is optional and non-blocking.** It downloads and starts on a background
+thread, so the hosted model answers from the first second and the Space is never held up by
+it. Every failure becomes a status line in the interface rather than an exception, because a
+Space that will not start is worse than one with a single model. Set `ENABLE_LOCAL_MODEL=0`
+in the Space's variables to skip it entirely.
+
+None of this affects the evaluation. That runs locally against the same corpus and index,
+where the constraint is a laptop rather than a free tier.
+
 ## What the deployment cannot do
 
 **It shares one free-tier daily token allowance.** At roughly 3,000 tokens a question that

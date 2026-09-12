@@ -38,6 +38,8 @@ from functools import wraps
 # pointed at by `app_file` in the Space README, so the name is free to be safe.
 ROOT = pathlib.Path(__file__).resolve().parent
 sys.path.insert(0, str(ROOT / "backend"))
+# local_model.py sits beside this file at the Space root.
+sys.path.insert(0, str(ROOT))
 
 # Point fastembed at the Hugging Face hub cache, which is where `preload_from_hub`
 # in the Space README puts the model at build time. fastembed uses the same
@@ -110,13 +112,40 @@ if spaces is not None:
 HOSTED_LABEL = "Hosted — openai/gpt-oss-120b"
 LOCAL_LABEL = "Local — qwen2.5:3b-instruct"
 
-# Asked once at startup rather than assumed: a Hugging Face Space cannot run
-# Ollama, and an interface offering a switch to a model that is not there is
-# worse than one offering no switch at all.
+# A local model already running — the normal case when this project is run on a
+# development machine.
 LOCAL_AVAILABLE = local_provider_reachable()
-PROVIDERS = {HOSTED_LABEL: "groq"}
-if LOCAL_AVAILABLE:
-    PROVIDERS[LOCAL_LABEL] = "ollama"
+
+# Otherwise, fetch and start one here. A Space has no persistent storage, so this
+# is 1.4 GB of Ollama runtime plus 1.9 GB of weights on every cold start, and
+# inference then runs on two shared vCPUs. It is done on a background thread so
+# the hosted model answers from the first second, and every failure becomes a
+# status string rather than an exception — a Space that will not start is worse
+# than one with a single model.
+LOCAL = None
+if not LOCAL_AVAILABLE and os.environ.get("ENABLE_LOCAL_MODEL", "1") != "0":
+    from local_model import LocalModel
+
+    LOCAL = LocalModel()
+    LOCAL.start_in_background()
+
+# Both are offered. Choosing the local one before it has arrived reports what it
+# is doing rather than failing, which is the difference between "still
+# downloading" and "broken".
+PROVIDERS = {HOSTED_LABEL: "groq", LOCAL_LABEL: "ollama"}
+
+
+def local_status() -> str:
+    """What the local model is doing, for the interface and for its failures."""
+    if LOCAL_AVAILABLE:
+        return "ready"
+    if LOCAL is None:
+        return "disabled"
+    return LOCAL.status
+
+
+def local_usable() -> bool:
+    return LOCAL_AVAILABLE or (LOCAL is not None and LOCAL.ready)
 
 
 async def answer_question(question: str, provider_label: str | None = None) -> str:
@@ -132,16 +161,24 @@ async def answer_question(question: str, provider_label: str | None = None) -> s
 
     provider = PROVIDERS.get(provider_label or HOSTED_LABEL, "groq")
 
+    if provider == "ollama" and not local_usable():
+        return (
+            f"**The local model is not ready yet** — {local_status()}.\n\n"
+            "It is fetched on every cold start because a Space has no persistent "
+            "storage: 1.4 GB of runtime and 1.9 GB of weights. The hosted model "
+            "answers now; this one will be selectable when it has arrived."
+        )
+
     try:
         answer = await get_qa(provider).answer(question)
     except Exception as exc:  # noqa: BLE001 — surfaced to the reader, not swallowed
-        _, detail = explain(str(exc), local_available=LOCAL_AVAILABLE)
+        _, detail = explain(str(exc), local_available=local_usable())
         return f"**Unavailable.** {detail}"
 
     if answer.error:
         # The same wording the API returns for the same condition. This printed
         # the provider's raw 429 until someone looked at the deployed demo.
-        _, detail = explain(answer.error, local_available=LOCAL_AVAILABLE)
+        _, detail = explain(answer.error, local_available=local_usable())
         return f"**Unavailable.** {detail}"
 
     result = validate(answer, get_corpora(), schedule=get_schedule())
@@ -197,16 +234,18 @@ with gr.Blocks(title="Criminal Law Q&A — Bangladesh") as demo:
         choices=list(PROVIDERS),
         value=HOSTED_LABEL,
         label="Model",
+        interactive=True,
         info=(
             "The hosted model shares a free daily allowance. The local one is "
-            "free and unmetered, and materially weaker — its Bangla in "
-            "particular is not good."
-            if LOCAL_AVAILABLE
-            else "This deployment has no local model: a Hugging Face Space "
-            "cannot run Ollama. Running the project locally offers both."
+            "free and unmetered, materially weaker, and on a Space it is fetched "
+            "on every cold start — 3.3 GB — then runs on two shared vCPUs, so it "
+            "is slow. Ask it anything before it has arrived and it will say so."
         ),
-        interactive=LOCAL_AVAILABLE,
     )
+
+    status = gr.Markdown(f"*Local model: {local_status()}*")
+    refresh = gr.Button("Check local model", size="sm")
+    refresh.click(lambda: f"*Local model: {local_status()}*", None, status)
 
     ask = gr.Button("Ask", variant="primary")
     gr.Examples(examples=EXAMPLES, inputs=question, label="Try one")

@@ -32,8 +32,9 @@ def explain(message: str, *, local_available: bool = False) -> tuple[int, str]:
             " You can switch to the local model below and keep going — it is free "
             "and unmetered, and materially weaker."
             if local_available
-            else " There is no local model in this deployment, so the only option "
-            "is to wait."
+            else " This deployment has no second model to fall back to — a local "
+            "one would re-fetch its weights on every cold start and answer in "
+            "minutes on shared CPU — so waiting is genuinely the faster option."
         )
         return 503, (
             "The shared free-tier daily token allowance for the hosted model is "
