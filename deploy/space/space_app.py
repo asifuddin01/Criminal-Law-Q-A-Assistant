@@ -1,22 +1,28 @@
 """Entry point for a Hugging Face Gradio Space.
 
-Docker Spaces are not available on this account's tier, so the application runs
-under the `gradio` SDK. That SDK does not require the app to *be* a Gradio
-interface — Spaces runs `python app.py` and proxies port 7860 — so what serves
-that port is this project's own FastAPI application: the exported Next.js
-frontend at `/`, the API under `/api`.
+Docker Spaces are not on this account's tier and CPU-basic hardware needs a
+subscription, so this runs under the `gradio` SDK on ZeroGPU — which allocates a
+GPU only inside `@spaces.GPU` calls, and this application never makes one.
 
-Running FastAPI under the gradio SDK is not a documented pattern (every
-documented FastAPI-on-Spaces example uses Docker, which is the tier we do not
-have), so this file hedges rather than assumes. A real, working Gradio interface
-onto the same pipeline is mounted at `/gradio/`. If the runtime looks for a
-Gradio app it finds one; if the static serving misbehaves, that interface still
-answers questions with the same retrieval, the same citations and the same
-verification. It is a fallback, not the product.
+The interface here is Gradio's. The project's own interface is a Next.js
+application, which is in the repository with screenshots; serving it from a Space
+is possible but needs Gradio's server-side rendering disabled and its index route
+replaced, and a demo is not worth that much machinery. The pipeline behind both
+is identical — the same retrieval, the same citation validation, the same
+amendment provenance — and the API is mounted under `/api` so it can be
+exercised directly.
 
-Everything a Dockerfile would do at build time is committed instead, because
-this SDK has no build step: `deploy/push-to-space.sh` exports the frontend and
-precomputes the Schedule II parse before pushing.
+Everything a build step would prepare is committed instead, because this SDK has
+none: the parsed Schedule II, the corpus and the vector index. The embedding
+model comes from `preload_from_hub` in the Space README.
+
+Two platform behaviours this file exists to accommodate, both found the hard way:
+
+  - Spaces *imports* this module and launches the Blocks it finds, so a
+    `__main__` block never runs there.
+  - Gradio 6 renders server-side by default on Spaces, putting a Node proxy on
+    the public port that forwards only Gradio's own routes to Python. Anything
+    mounted on the Python app is unreachable until that is turned off.
 """
 
 from __future__ import annotations
@@ -66,7 +72,6 @@ try:  # Present on a Space, absent when this file is run locally.
 except ModuleNotFoundError:
     spaces = None
 from fastapi import FastAPI  # noqa: E402
-from fastapi.staticfiles import StaticFiles  # noqa: E402
 
 from app.api.routes import router as api_router  # noqa: E402
 from app.legal import DISCLAIMER  # noqa: E402
@@ -137,24 +142,58 @@ if spaces is not None:
         return "ok"
 
 
-with gr.Blocks(title="Criminal Law Q&A — Bangladesh") as fallback:
+EXAMPLES = [
+    "When may a police officer arrest a person without a warrant?",
+    "Is theft a bailable offence?",
+    "How long can police detain someone before a Magistrate?",
+    "পুলিশ কখন বিনা পরোয়ানায় গ্রেপ্তার করতে পারে?",
+]
+
+
+with gr.Blocks(title="Criminal Law Q&A — Bangladesh") as demo:
     gr.Markdown(
-        "## Criminal Law Q&A — Bangladesh\n"
-        "A plain fallback interface. The full one is at the root URL of this Space.\n\n"
-        f"> {DISCLAIMER}"
+        "# Criminal Law Q&A — Bangladesh\n"
+        "Answers come only from retrieved statutory text — the Code of Criminal "
+        "Procedure, 1898, its Schedule II, and the Penal Code, 1860. Every citation "
+        "is checked against the stored source before it is shown, and where the "
+        "corpus does not support an answer the system says so instead of "
+        "producing one."
     )
-    box = gr.Textbox(label="Question", placeholder="Is theft a bailable offence?")
-    out = gr.Markdown(label="Answer")
-    gr.Button("Ask", variant="primary").click(answer_question, box, out)
-    box.submit(answer_question, box, out)
+    gr.Markdown(f"> {DISCLAIMER}")
+
+    question = gr.Textbox(
+        label="Question",
+        placeholder="Ask about arrest, bail, investigation, or an offence by name",
+        lines=2,
+    )
+    ask = gr.Button("Ask", variant="primary")
+    gr.Examples(examples=EXAMPLES, inputs=question, label="Try one")
+    answer = gr.Markdown(label="Answer")
+
+    ask.click(answer_question, question, answer)
+    question.submit(answer_question, question, answer)
+
+    gr.Markdown(
+        "The interface shipped with the project is a Next.js application; it is in "
+        "the repository with screenshots. This Space serves the same pipeline — the "
+        "same retrieval, the same citation validation, the same amendment "
+        "provenance — through Gradio, and exposes the API under `/api`.\n\n"
+        "Source, evaluation and the experiment log: "
+        "https://github.com/asifuddin01/Criminal-Law-Q-A-Assistant"
+    )
+
 
 def _mount_application(server: FastAPI) -> None:
-    """Add this application's routes to the FastAPI app Gradio has just built.
+    """Add this project's API to the FastAPI app Gradio has just built.
 
-    The API is **mounted** as a sub-application rather than included with
-    `include_router`. Modern FastAPI's `include_router` appends a lazy marker
-    resolved when the app builds its route table; a mount is resolved per
-    request and so works whenever it is added.
+    The interface is Gradio's. The API is mounted alongside it so the pipeline
+    can be exercised directly — `/api/ask` returns the citations, their
+    verification status and the amendments behind them as JSON.
+
+    Mounted as a sub-application rather than included with `include_router`:
+    modern FastAPI's `include_router` appends a lazy marker resolved when the
+    app builds its route table, and by this point that has happened. A mount is
+    resolved per request, so it works on an app that is already serving.
     """
     for component, state in warm().items():
         print(f"{component}: {state}", flush=True)
@@ -162,19 +201,6 @@ def _mount_application(server: FastAPI) -> None:
     api = FastAPI(docs_url=None, redoc_url=None, openapi_url=None)
     api.include_router(api_router)
     server.mount("/api", api)
-
-    static = ROOT / "backend" / "static"
-    if (static / "index.html").exists():
-        # Gradio serves its own page at "/". The exported frontend is this
-        # application's interface, so it takes the root and Gradio's index goes.
-        server.router.routes = [
-            route
-            for route in server.router.routes
-            if getattr(route, "path", None) != "/"
-        ]
-        # Mounted last: it matches every path, so anything added after it would
-        # be unreachable — the API mount above included.
-        server.mount("/", StaticFiles(directory=static, html=True), name="web")
 
 
 # Gradio builds its FastAPI app inside `launch()`, and on a Space it is the
@@ -200,7 +226,7 @@ gr.routes.App.create_app = staticmethod(_create_app)
 
 if __name__ == "__main__":
     # Local runs only; on a Space the platform launches the Blocks above.
-    fallback.launch(
+    demo.launch(
         server_name="0.0.0.0",
         server_port=int(os.environ.get("PORT", 7860)),
     )

@@ -75,37 +75,24 @@ platform stops it with the same `No @spaces.GPU function detected during startup
 many decorated functions the code actually has.
 
 **And the platform, not this file, calls `launch()`.** Spaces *imports* the module named by
-`app_file` and launches the Blocks it finds; a `__main__` block never runs. The first
-deployment that reached RUNNING proved it by serving Gradio's own index page at every path,
-including `/api/meta` — the mounting code sat under `__main__` and had never executed.
-Importing the module locally and launching it the same way reproduces that exactly, which is
-how it was diagnosed rather than guessed.
+`app_file` and launches the Blocks it finds; a `__main__` block never runs. Importing the
+module locally and launching it the same way reproduces the deployed behaviour exactly,
+which is how this was diagnosed rather than guessed.
 
-So the routes are attached where Gradio builds its app: `space_app.py` wraps
-`gradio.routes.App.create_app`, and adds the API as a sub-application under `/api` and the
-exported frontend at `/`, replacing Gradio's index. Gradio's internals — assets, theme,
-queue — are left alone, so the fallback interface still works. This happens whoever calls
-launch, which is the point.
+**Server-side rendering has to be off for anything mounted on the Python app.** Gradio 6
+renders server-side by default on Spaces, putting a Node proxy on the public port that
+forwards only Gradio's own routes to Python behind it — the startup log says so:
+`Running on local URL: http://0.0.0.0:7860, with SSR ⚡ (Node proxy -> Python :7861)`. The
+Space answered `/api/meta` with Gradio's page *after* the API mount had been added and had
+logged its own startup. `space_app.py` sets `GRADIO_SSR_MODE=false` before importing Gradio,
+by assignment, since the platform sets it true.
 
-**Server-side rendering has to be off.** Gradio 6 renders server-side by default on Spaces,
-which puts a Node proxy on the public port and forwards only Gradio's own routes to the
-Python process behind it — the startup log says so plainly once you look:
-`Running on local URL: http://0.0.0.0:7860, with SSR ⚡ (Node proxy -> Python :7861)`.
-
-Every route this application adds lives on the Python app, so SSR makes all of them
-unreachable while looking completely healthy: the Space answered `/api/meta` with Gradio's
-page *after* the mounts had been added and had logged their own startup. `space_app.py`
-therefore sets `GRADIO_SSR_MODE=false` before importing Gradio — by assignment, since the
-platform sets it true and this has to override it.
-
-The API is **mounted**, not included with `include_router`. Modern FastAPI's
-`include_router` appends a lazy marker resolved when the app builds its route table, and by
-that point Gradio has already launched and built it: the routes are added and never appear.
-A mount is resolved per request, so it works on an app that is already serving.
-
-A Space created on ZeroGPU cannot always be downgraded to CPU basic afterwards: Hugging Face
-treats that as a downgrade and may require PRO. Choosing the hardware at creation avoids the
-question entirely.
+**The interface on the Space is Gradio's.** The project's own interface is the Next.js
+application in this repository, shown in the screenshots. Serving it from a Space works —
+disable SSR, replace Gradio's index route, mount the export — but that is a lot of machinery
+riding on two undocumented platform behaviours, for a demo. The pipeline behind both is the
+same, and the API is mounted under `/api` so `POST /api/ask` returns the citations, their
+verification status and the amendments behind them as JSON.
 
 ### Dependencies
 

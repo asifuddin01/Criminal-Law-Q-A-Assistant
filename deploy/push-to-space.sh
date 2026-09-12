@@ -85,9 +85,6 @@ print(f"    ok — sdk={fields.get('sdk')} app_file={fields.get('app_file')} "
       f"short_description={len(fields.get('short_description', ''))} chars")
 PYCHECK
 
-echo "==> exporting the frontend"
-(cd frontend && npm run build >/dev/null)
-
 echo "==> precomputing the Schedule II parse"
 # 48 seconds of PDF parsing that would otherwise run on every cold start, and a
 # Gradio Space has no build step in which to do it.
@@ -102,8 +99,6 @@ rsync -a --quiet \
     --exclude '.ruff_cache' --exclude 'tests' --exclude 'static' --exclude '.env*' \
     --exclude 'evaluation' \
     backend/ "$STAGE/backend/"
-
-cp -R frontend/out "$STAGE/backend/static"
 
 # The corpus. The Schedule II PDF is deliberately not shipped: the parsed rows
 # are, the application reads those, and the PDF is 3.7 MB of binary that would

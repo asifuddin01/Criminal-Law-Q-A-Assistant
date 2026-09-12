@@ -40,15 +40,19 @@ is normalised to text at the API boundary, so one evaluation covers all of them.
 
 ## How this is put together
 
-Docker Spaces are not on this account's tier, so it runs under the `gradio` SDK — which
-does not mean it *is* a Gradio interface. Spaces runs `app.py` and proxies port 7860, and
-what serves that port is the project's own FastAPI application: the exported Next.js
-frontend at `/`, the API under `/api`. A small Gradio block sits at `/gradio` so the
-runtime finds the app its SDK expects.
+Docker Spaces are not on this account's tier and CPU-basic hardware needs a subscription,
+so this runs under the `gradio` SDK on ZeroGPU — which allocates a GPU only inside
+`@spaces.GPU` calls, and this application never makes one. It is a CPU workload: embeddings
+are ONNX, and the language model is an HTTP call.
 
-Everything a Dockerfile would have done at build time is committed instead, because this
-SDK has no build step: the frontend export, the parsed Schedule II, the corpus and the
-vector index.
+The interface here is Gradio's. The project ships a Next.js application, which lives in the
+repository with screenshots. The pipeline behind both is identical — the same retrieval, the
+same citation validation, the same amendment provenance — and the API is mounted under
+`/api`, so `POST /api/ask` returns the citations, their verification status and the
+amendments behind them as JSON.
+
+Everything a build step would prepare is committed instead, because this SDK has none: the
+parsed Schedule II rows, the corpus and the vector index.
 
 ## Limits of this deployment
 
