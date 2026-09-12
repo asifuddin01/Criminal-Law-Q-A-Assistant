@@ -9,7 +9,7 @@ python_version: "3.12.12"
 pinned: false
 preload_from_hub:
   - qdrant/paraphrase-multilingual-MiniLM-L12-v2-onnx-Q
-short_description: Source-grounded Q&A over the Code of Criminal Procedure, 1898
+short_description: Cited answers from the Code of Criminal Procedure
 ---
 
 # Criminal Law Q&A — Bangladesh

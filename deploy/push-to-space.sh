@@ -48,6 +48,43 @@ fi
 STAGE="$(mktemp -d -t crimlaw-space)"
 trap 'rm -rf "$STAGE"' EXIT
 
+# The Space README's YAML is validated by a pre-receive hook, so a field that is
+# one character too long costs a full build-and-push round trip to discover.
+# Check it here, where it costs nothing.
+echo "==> checking the Space README metadata"
+python3 - "$ROOT/deploy/space-readme.md" <<'PYCHECK'
+import pathlib
+import sys
+
+LIMITS = {"short_description": 60, "title": 100}
+REQUIRED = ("title", "sdk", "app_file")
+
+text = pathlib.Path(sys.argv[1]).read_text(encoding="utf-8")
+if not text.startswith("---\n"):
+    sys.exit("space-readme.md does not begin with a YAML front-matter block")
+
+block = text.split("---\n", 2)[1]
+fields = {}
+for line in block.splitlines():
+    if line[:1].isalpha() and ":" in line:
+        key, _, value = line.partition(":")
+        fields[key.strip()] = value.strip()
+
+problems = []
+for key in REQUIRED:
+    if key not in fields:
+        problems.append(f"{key} is missing")
+for key, limit in LIMITS.items():
+    value = fields.get(key, "")
+    if len(value) > limit:
+        problems.append(f"{key} is {len(value)} characters, limit is {limit}: {value!r}")
+
+if problems:
+    sys.exit("Space README metadata will be rejected:\n  - " + "\n  - ".join(problems))
+print(f"    ok — sdk={fields.get('sdk')} app_file={fields.get('app_file')} "
+      f"short_description={len(fields.get('short_description', ''))} chars")
+PYCHECK
+
 echo "==> exporting the frontend"
 (cd frontend && npm run build >/dev/null)
 
