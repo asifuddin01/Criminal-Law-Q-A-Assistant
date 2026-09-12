@@ -75,7 +75,7 @@
   "model": "openai/gpt-oss-120b",
   "elapsed_seconds": 243.4,
   "cache_hits": 55,
-  "rescored_with": "2026-09-12-misattribution",
+  "rescored_with": "2026-09-12-trimmed-prefix",
   "dataset_questions": 101,
   "missing_answers": 8
 }

@@ -59,9 +59,9 @@ movement is the pipeline:
 | Stage | Retrieval recall | Citation precision | Answer hit rate | Excerpt validity | Refusal accuracy |
 |---|---|---|---|---|---|
 | 1 — LLM only | n/a | 6.9% | 1.3% | **0.0%** | 73.3% |
-| 2 — naive chunks | 63.6% | 61.2% | 48.0% | 42.9% | 90.1% |
-| 3 — legal-aware chunks | 80.5% | **66.3%** | **63.6%** | 77.4% | 88.1% |
-| 4 — full corpus + offence lookup | **81.8%** | 59.1% | 61.0% | **81.2%** | **90.1%** |
+| 2 — naive chunks | 63.6% | 61.2% | 48.0% | 52.9% | 90.1% |
+| 3 — legal-aware chunks | 80.5% | **66.3%** | **63.6%** | 83.9% | 88.1% |
+| 4 — full corpus + offence lookup | **81.8%** | 59.1% | 61.0% | **87.5%** | **90.1%** |
 
 **What a failed quotation actually was.** "Invalid excerpt" is two failures with opposite
 fixes, and separating them is the clearest result in this table:
@@ -69,9 +69,9 @@ fixes, and separating them is the clearest result in this table:
 | Stage | Verified | Real text, wrong section | In no section at all |
 |---|---|---|---|
 | 1 — LLM only | 0.0% | 0.0% | **100.0%** |
-| 2 — naive chunks | 42.9% | **18.6%** | 38.6% |
-| 3 — legal-aware chunks | 77.4% | **5.4%** | 17.2% |
-| 4 — full corpus | 81.2% | 6.2% | **12.5%** |
+| 2 — naive chunks | 52.9% | **18.6%** | 28.6% |
+| 3 — legal-aware chunks | 83.9% | **5.4%** | 10.8% |
+| 4 — full corpus | 87.5% | 6.2% | **6.2%** |
 
 Misattribution is what legal-aware chunking fixes — 18.6% to 5.4%, a two-thirds reduction
 from one change, and the direct measurement of the claim that a chunk must not cross a
@@ -85,9 +85,9 @@ cover 93 and 95 of 101 and are not directly comparable with the local rows above
 | Stage | Retrieval recall | Citation precision | Answer hit rate | Excerpt validity | Refusal accuracy |
 |---|---|---|---|---|---|
 | 1 — LLM only | n/a | 17.9% | 24.0% | **0.0%** | 86.0% |
-| 2 — naive chunks | 45.5% | 54.9% | 51.9% | **92.3%** | 66.3% |
+| 2 — naive chunks | 45.5% | 54.9% | 51.9% | **95.4%** | 66.3% |
 
-The hosted model quotes far more faithfully than the local one (92.3% against 42.9% at the
+The hosted model quotes far more faithfully than the local one (95.4% against 52.9% at the
 same stage) and refuses far less readily (66.3% against 90.1%). Both are visible only
 because the same dataset and the same scorer are used for both.
 
@@ -131,7 +131,7 @@ cd backend && uv run python -m app.evaluation.harness --stage 3 --provider groq
 **What this costs the conclusions: nothing.** The four-stage progression is measured
 end-to-end on `qwen2.5:3b-instruct`, where the model is constant across stages and every
 movement is attributable to the pipeline. The hosted track exists to show how the same
-pipeline behaves with a stronger model, and stage 2 already does: 92.3% excerpt validity
+pipeline behaves with a stronger model, and stage 2 already does: 95.4% excerpt validity
 against the local model's 42.9% at the identical stage, on the same dataset and the same
 scorer. Stages 3 and 4 would extend that comparison, not establish it.
 
@@ -686,6 +686,14 @@ budget:
 | 1 — LLM only | 0.0% | **0.0%** | 0.0% |
 | 2 — naive chunks | 74.6% | **92.3%** | 75.4% |
 
+A fourth allowance was added later, for the same reason and with the same
+safeguard: a quotation that is verbatim for most of its length and drifts near the end is
+displayed as the part that matched. A local model asked about section 54 returned 3,838
+characters — the whole section — of which the first 3,328 were the statute word for word; it
+had inserted one comma three thousand characters in, and the whole quotation was rejected
+for it. The trimmed part has to be at least half of what was quoted, so a quotation that is
+right for a clause and invented thereafter is not rescued by its opening.
+
 **Why this is a correction and not a loosening.** Stage 1 is the control. It quotes from
 memory with no text in front of it. Of its 15 quotations, the allowances rescue **zero** —
 13 rejected outright, 2 citing sections that do not exist — on both models. Every
@@ -711,6 +719,13 @@ re-derives the scores from it. A score is downstream of an answer, and correctin
 scorer should never mean paying a model again to re-measure text that has not changed.
 
 ### 2026-09-12 — Four stages on the corrected pipeline
+
+> **Figures below are as scored on the day.** A later revision to the quotation
+> checker — showing the verbatim part of an over-long quotation rather than
+> rejecting it whole — raised excerpt validity at every stage. The current
+> numbers are in [Results summary](#results-summary); every run was re-scored
+> with `rescore --all`, which is what storing answers beside scores is for.
+> `excerpt_validity_unrepaired` is unchanged, because no allowance touches it.
 
 **Objective.** Re-run every stage after the scorer, the prompt and the extract rendering
 were corrected, and separate what each change was responsible for.

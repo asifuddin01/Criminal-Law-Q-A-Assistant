@@ -54,7 +54,7 @@ def _post(client, *, content=b"fake audio", content_type="audio/webm", **data):
 
 def test_speech_returns_the_text_rather_than_an_answer(client, monkeypatch):
     provider = StubProvider(text="পুলিশ কখন গ্রেপ্তার করতে পারে?")
-    monkeypatch.setattr(routes, "get_provider", lambda: provider)
+    monkeypatch.setattr(routes, "transcription_provider", lambda: provider)
 
     response = _post(client, language="bn")
 
@@ -70,9 +70,8 @@ def test_a_provider_without_transcription_says_so_rather_than_failing(
 ):
     """The capability is declared, not assumed. A deployment on the local model has
     no transcription, and should say that instead of erroring at call time."""
-    monkeypatch.setattr(
-        routes, "get_provider", lambda: StubProvider(transcription=False)
-    )
+    # Nothing configured can transcribe.
+    monkeypatch.setattr(routes, "transcription_provider", lambda: None)
 
     response = _post(client)
 
@@ -81,7 +80,7 @@ def test_a_provider_without_transcription_says_so_rather_than_failing(
 
 
 def test_empty_audio_is_rejected(client, monkeypatch):
-    monkeypatch.setattr(routes, "get_provider", lambda: StubProvider())
+    monkeypatch.setattr(routes, "transcription_provider", lambda: StubProvider())
 
     response = _post(client, content=b"")
 
@@ -92,7 +91,7 @@ def test_oversized_audio_is_rejected_before_the_provider(client, monkeypatch):
     """Rejected locally so a long upload is not spent before the provider refuses
     it."""
     provider = StubProvider()
-    monkeypatch.setattr(routes, "get_provider", lambda: provider)
+    monkeypatch.setattr(routes, "transcription_provider", lambda: provider)
 
     response = _post(client, content=b"x" * (routes.MAX_AUDIO_BYTES + 1))
 
@@ -103,7 +102,9 @@ def test_oversized_audio_is_rejected_before_the_provider(client, monkeypatch):
 def test_silence_is_reported_rather_than_returned_as_an_empty_question(
     client, monkeypatch
 ):
-    monkeypatch.setattr(routes, "get_provider", lambda: StubProvider(text="   "))
+    monkeypatch.setattr(
+        routes, "transcription_provider", lambda: StubProvider(text="   ")
+    )
 
     response = _post(client)
 
@@ -126,7 +127,7 @@ def test_the_filename_carries_a_format_the_model_can_read(
     """Whisper infers the format from the filename, and a browser recording arrives
     as a blob with no useful name."""
     provider = StubProvider()
-    monkeypatch.setattr(routes, "get_provider", lambda: provider)
+    monkeypatch.setattr(routes, "transcription_provider", lambda: provider)
 
     _post(client, content_type=content_type)
 

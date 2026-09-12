@@ -35,6 +35,11 @@ from dataclasses import dataclass
 # Below this length a quotation matches too easily to be evidence of anything.
 MIN_QUOTE_CHARS = 20
 
+# How much of an over-long quotation has to be verbatim before the matching
+# part is shown on its own. Set high on purpose: a quotation that is right for
+# a sentence and invented thereafter is not a quotation that drifted.
+PREFIX_SHARE = 0.5
+
 # "[* * *]" and "[***]": words the legislature removed. Dropped rather than
 # stripped to bare asterisks, so the surrounding words close up as they read.
 _ELIDED_BY_AMENDMENT = re.compile(r"\[\s*(?:\*\s*)+\]")
@@ -129,7 +134,53 @@ def check_quote(quote: str, body: str, *, marginal_note: str = "") -> QuoteCheck
         if canonical(candidate) in target:
             return QuoteCheck(True, candidate.strip(), repair)
 
+    # Last: the part of the quotation that is verbatim, when a model quoted far
+    # more than it needed and drifted near the end. A local model asked about
+    # section 54 returned 3,838 characters — the whole section — of which the
+    # first 3,328 matched the statute exactly; it had inserted one comma into
+    # "requisition" three thousand characters in, and the entire quotation was
+    # rejected for it.
+    #
+    # What is displayed is the matching part alone, so the claim made to the
+    # reader — this text is the section's own words — is true of every word
+    # shown. The floor stops this from rescuing a quotation that merely opens
+    # correctly: most of it has to be right, not just the beginning.
+    prefix = _verbatim_prefix(quote, target)
+    if prefix:
+        return QuoteCheck(True, prefix, "trimmed")
+
     return QuoteCheck(verified=False, quote="")
+
+
+def _verbatim_prefix(quote: str, target: str) -> str:
+    """The longest opening span of `quote` that appears in `target`, or "".
+
+    Returns nothing unless that span is both long enough to be evidence and the
+    majority of what was quoted.
+    """
+    canonical_quote = canonical(quote)
+    if not canonical_quote:
+        return ""
+
+    low, high = 0, len(canonical_quote)
+    while low < high:
+        middle = (low + high + 1) // 2
+        if canonical_quote[:middle] in target:
+            low = middle
+        else:
+            high = middle - 1
+
+    if low < MIN_QUOTE_CHARS or low < len(canonical_quote) * PREFIX_SHARE:
+        return ""
+    return _take_leading(quote, low)
+
+
+def _take_leading(text: str, canonical_chars: int) -> str:
+    """The prefix of `text` whose canonical form is `canonical_chars` long."""
+    for index in range(len(text), 0, -1):
+        if len(canonical(text[:index])) <= canonical_chars:
+            return text[:index].strip()
+    return ""
 
 
 def _candidates(quote: str, marginal_note: str):

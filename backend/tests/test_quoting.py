@@ -149,3 +149,49 @@ def test_a_space_left_where_a_footnote_marker_stood_is_not_a_mismatch():
         "Evidence Act, 1872, section 24."
     )
     assert check_quote(quote, body).verified
+
+
+def test_a_long_quotation_that_drifts_late_keeps_the_part_that_is_verbatim():
+    """Regression from the deployed demo, and the reason it looked broken.
+
+    Asked about section 54 the local model returned 3,838 characters — the whole
+    section — of which the first 3,328 were the statute word for word. It had
+    inserted one comma three thousand characters in, and the entire quotation
+    was rejected. The interface reported "0 excerpts verified" for an answer
+    that had quoted the law almost perfectly.
+    """
+    body = (
+        "54. Any police-officer may arrest without warrant any person concerned "
+        "in a cognizable offence, or against whom a credible information has "
+        "been received, or a reasonable suspicion exists."
+    )
+    drifted = (
+        "Any police-officer may arrest without warrant any person concerned in a "
+        "cognizable offence, or against whom a credible information has been "
+        "received, or a reasonable, suspicion exists."
+    )
+
+    checked = check_quote(drifted, body)
+
+    assert checked.verified
+    assert checked.repair == "trimmed"
+    # What is shown is verbatim; the drift is not displayed as the statute.
+    assert checked.quote in " ".join(body.split())
+    assert "reasonable, suspicion" not in checked.quote
+
+
+def test_a_quotation_that_is_mostly_invented_is_not_rescued_by_its_opening():
+    """The floor. Right for a clause and invented after is not drift."""
+    body = "54. Any police-officer may arrest without warrant any person concerned."
+    mostly_invented = (
+        "Any police-officer may arrest without warrant and may thereafter detain "
+        "that person for as long as the investigating officer considers it "
+        "convenient, without informing a Magistrate of the arrest at all."
+    )
+
+    assert not check_quote(mostly_invented, body).verified
+
+
+def test_the_trimmed_prefix_must_still_clear_the_length_floor():
+    body = "54. Any police-officer may arrest without warrant any person concerned."
+    assert not check_quote("Any police-officer may " + "x" * 400, body).verified

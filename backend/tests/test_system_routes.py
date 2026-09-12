@@ -116,3 +116,33 @@ def test_the_answer_cache_distinguishes_models():
     local = AnswerCache.key(question, model="qwen2.5:3b-instruct", index="i")
 
     assert hosted != local
+
+
+def test_speech_survives_choosing_the_text_only_model(monkeypatch):
+    """Regression, visible in the interface.
+
+    Selecting the local model made the Speak button vanish, because /api/meta
+    reported the answering model's capabilities as the whole deployment's. ADR
+    0004 erases modality at this boundary: what hears the question and what
+    answers it are different jobs, and the hosted provider transcribes either
+    way.
+    """
+    monkeypatch.setenv("LLM_PROVIDER", "ollama")
+    monkeypatch.setenv("GROQ_API_KEY", "test-key-for-capability-reporting")
+
+    body = TestClient(create_app()).get("/api/meta").json()
+
+    assert body["provider"]["name"] == "ollama"
+    # The answering model is text-only...
+    assert "transcription" not in body["provider"]["capabilities"]
+    # ...and speech is still offered, because something else can hear.
+    assert "speech" in body["features"]
+
+
+def test_speech_is_absent_when_nothing_can_transcribe(monkeypatch):
+    monkeypatch.setenv("LLM_PROVIDER", "ollama")
+    monkeypatch.delenv("GROQ_API_KEY", raising=False)
+
+    body = TestClient(create_app()).get("/api/meta").json()
+
+    assert "speech" not in body["features"]

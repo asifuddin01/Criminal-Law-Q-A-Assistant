@@ -38,6 +38,7 @@ a roadmap.
 | Document upload | **Delivered** — PDF and text, never treated as law |
 | Amendment provenance | **Delivered** — every citation carries how and when its section changed |
 | Deployment | **Live and answering** — [criminal-law-qa-bangladesh](https://huggingface.co/spaces/asifuddin01/criminal-law-qa-bangladesh) |
+| Demo recording | **Recorded** — [docs/demo-local-model.webm](docs/demo-local-model.webm), three questions on the local model |
 
 ## What was asked for, and what this does
 
@@ -54,7 +55,7 @@ Everything the brief required, including all three optional inputs.
 | *Optional:* image input | tesseract OCR, English + Bengali |
 | *Optional:* speech input | `whisper-large-v3`, English and Bangla |
 | *Optional:* document upload | PDF and text, never treated as law |
-| *Optional:* demo video **or** deployment | [Live Space](https://huggingface.co/spaces/asifuddin01/criminal-law-qa-bangladesh) |
+| *Optional:* demo video **or** deployment | Both — [live Space](https://huggingface.co/spaces/asifuddin01/criminal-law-qa-bangladesh) and a [recorded demo](docs/demo-local-model.webm) |
 
 ### Beyond the brief
 
@@ -380,9 +381,9 @@ every run:
 | Stage | Retrieval recall | Citation precision | Answer hit rate | Excerpt validity | Refusal accuracy |
 |---|---|---|---|---|---|
 | 1 — LLM only | n/a | 6.9% | 1.3% | **0.0%** | 73.3% |
-| 2 — naive chunks | 63.6% | 61.2% | 48.0% | 42.9% | 90.1% |
-| 3 — legal-aware chunks | 80.5% | **66.3%** | **63.6%** | 77.4% | 88.1% |
-| 4 — full corpus + offence lookup | **81.8%** | 59.1% | 61.0% | **81.2%** | **90.1%** |
+| 2 — naive chunks | 63.6% | 61.2% | 48.0% | 52.9% | 90.1% |
+| 3 — legal-aware chunks | 80.5% | **66.3%** | **63.6%** | 83.9% | 88.1% |
+| 4 — full corpus + offence lookup | **81.8%** | 59.1% | 61.0% | **87.5%** | **90.1%** |
 
 ![Evaluation metrics by stage](eval/runs/charts/metric-progression-qwen2-5-3b-instruct.png)
 
@@ -396,9 +397,9 @@ found in no section at all is the model writing law. Added together they hide ea
 | Stage | Verified | Real text, wrong section | In no section at all |
 |---|---|---|---|
 | 1 — LLM only | 0.0% | 0.0% | **100.0%** |
-| 2 — naive chunks | 42.9% | **18.6%** | 38.6% |
-| 3 — legal-aware chunks | 77.4% | **5.4%** | 17.2% |
-| 4 — full corpus | 81.2% | 6.2% | **12.5%** |
+| 2 — naive chunks | 52.9% | **18.6%** | 28.6% |
+| 3 — legal-aware chunks | 83.9% | **5.4%** | 10.8% |
+| 4 — full corpus | 87.5% | 6.2% | **6.2%** |
 
 Misattribution is what chunking on section boundaries fixes: 18.6% to 5.4%, from that one
 change. Fabrication is what retrieval fixes, falling at every stage from 100%.
@@ -409,7 +410,7 @@ to answer offence-classification questions at all, the lowest fabrication rate o
 and the best refusal accuracy. Act-aware ranking is the obvious response and is not built.
 
 The hosted model (`openai/gpt-oss-120b`) has completed stages 1 and 2, quoting far more
-faithfully (92.3% excerpt validity against 42.9% at the same stage) and refusing far less
+faithfully (95.4% excerpt validity against 52.9% at the same stage) and refusing far less
 readily.
 
 **Hosted stages 3 and 4 are in progress, paced by a free-tier daily token budget** — 47 of

@@ -121,6 +121,35 @@ def get_qa(provider: str | None = None) -> RetrievalQA:
     )
 
 
+def transcription_provider():
+    """A provider that can turn speech into text, whichever model answers.
+
+    Transcription is not the answering model's job. ADR 0004 erases modality at
+    the API boundary — speech becomes text and everything downstream is the
+    ordinary text path — so which model writes the answer has nothing to do with
+    what heard the question.
+
+    Binding the two together had a visible cost: selecting the local model, which
+    is text-only, made the Speak button disappear from the interface, because the
+    deployment was reporting its answering model's capabilities as the whole
+    system's. Returns None when nothing configured can transcribe.
+    """
+    from app.llm import Capability
+
+    settings = get_settings()
+    names = [settings.llm_provider] + [
+        n for n in ("groq", "ollama") if n != settings.llm_provider
+    ]
+    for name in names:
+        try:
+            provider = get_provider(name)
+        except Exception:  # noqa: BLE001 — an unconfigured provider is not an error here
+            continue
+        if provider.supports(Capability.TRANSCRIPTION):
+            return provider
+    return None
+
+
 def local_provider_reachable(timeout: float = 1.5) -> bool:
     """Whether an Ollama server is actually answering, right now.
 

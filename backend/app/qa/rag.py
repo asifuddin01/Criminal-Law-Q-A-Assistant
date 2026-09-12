@@ -39,6 +39,10 @@ the definitions in section 4. Section 4 only says where to look.
 - Where Schedule II says an attribute depends on another offence, say that it \
 depends. Do not resolve it yourself.
 - Quote only text that appears verbatim in the extracts. Copy it exactly.
+- Keep each quotation SHORT — the clause or sentence that carries the point, \
+never a whole section. A quotation is checked word for word against the statute, \
+and a long one is far more likely to drift by a comma and be rejected in full. \
+One accurate sentence is worth more than a paragraph that fails.
 - Each extract opens with a label line naming the section and its marginal note, \
 then the section's text between triple quotes. The label is NOT part of the law. \
 Quote only from between the triple quotes, and never begin a quotation with a \

@@ -12,7 +12,7 @@ from app import __version__
 from app.api.limits import AnswerCache, SlidingWindowLimiter, caller_key
 from app.config import get_settings
 from app.legal import DISCLAIMER, SOURCE_ATTRIBUTION
-from app.llm import Capability, CapabilityUnavailable, ProviderUnavailable, get_provider
+from app.llm import CapabilityUnavailable, ProviderUnavailable, get_provider
 from app.qa import ocr
 from app.qa.documents import DocumentStore, UnreadableDocument
 from app.qa.failures import explain
@@ -40,6 +40,7 @@ from app.services import (
     get_qa,
     get_schedule,
     local_provider_reachable,
+    transcription_provider,
 )
 
 router = APIRouter()
@@ -110,7 +111,10 @@ async def meta(
         _ = exc
 
     features = ["text", "upload"]
-    if "transcription" in info.capabilities:
+    # Speech depends on any provider that can transcribe, not on the one that
+    # answers. Choosing the text-only local model must not remove the Speak
+    # button: what heard the question and what answers it are different jobs.
+    if transcription_provider() is not None:
         features.append("speech")
     if ocr.available():
         features.append("image")
@@ -347,13 +351,13 @@ async def transcribe(
     See ADR 0004: modality is erased at this boundary, and everything downstream is
     the ordinary text path.
     """
-    provider = get_provider()
-    if not provider.supports(Capability.TRANSCRIPTION):
+    provider = transcription_provider()
+    if provider is None:
         raise HTTPException(
             status_code=503,
             detail=(
-                f"The configured provider ({provider.name}) has no transcription "
-                "model, so speech input is unavailable in this deployment."
+                "No configured provider has a transcription model, so speech "
+                "input is unavailable in this deployment."
             ),
         )
 
