@@ -37,18 +37,24 @@ rather than re-downloaded, which is what keeps a 240 MB fetch off the first ques
 At [huggingface.co/new-space](https://huggingface.co/new-space): **Gradio** SDK, blank
 template, public, license blank unless you have chosen one.
 
-**Hardware: CPU basic.** Not ZeroGPU, even though it is offered free. This application
-uses no GPU — embeddings are ONNX on CPU and the language model is called over HTTP — so a
-GPU would sit idle while bringing constraints that do not help:
+**Hardware: whichever free option the account offers.** On some accounts CPU basic is
+reserved for PRO subscribers and **ZeroGPU** is the only free choice — that is the case
+here, and it is fine. A ZeroGPU Space runs on ordinary CPU and allocates a GPU only inside
+`@spaces.GPU` calls. This application never makes one: embeddings are ONNX on CPU and the
+language model is an HTTP call. So the GPU is never requested, the 5-minute daily GPU quota
+is never touched, and the Space behaves as a CPU Space.
 
-- ZeroGPU supports only Python 3.12.12 and 3.10.13
-- hosting one requires an account older than 30 days with a verified email, and a newer
-  account fails in a way that reads like a build error
-- it is subject to a GPU queue and a 5-minute daily quota that this workload never uses
+Two ZeroGPU constraints do apply, and both are already handled:
 
-Hardware can be changed at any time under **Settings → Hardware**, so a Space created with
-ZeroGPU can simply be switched. The Python version is pinned to `3.12.12` in the Space
-README, which is valid on both, so neither choice breaks the build.
+- **Python is restricted to 3.12.12 or 3.10.13.** The Space README pins `3.12.12`, which is
+  also valid on CPU basic, so the build is correct on either.
+- **Hosting requires an account in good standing** — verified email, older than 30 days. A
+  newer account fails in a way that reads like a build error rather than an eligibility one,
+  so check that first if the Space will not start.
+
+A Space created on ZeroGPU cannot always be downgraded to CPU basic afterwards: Hugging Face
+treats that as a downgrade and may require PRO. Choosing the hardware at creation avoids the
+question entirely.
 
 ### 2. Push
 

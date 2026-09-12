@@ -210,8 +210,9 @@ container on one port. Steps, limits and the local `docker run`:
 
 The API key goes in the host's own secrets page, never in the repository.
 
-Docker Spaces are gated behind a paid tier on some accounts, so the Space runs under the
-`gradio` SDK — which serves this project's own FastAPI application rather than a Gradio
+Docker Spaces, and on some accounts CPU-basic hardware, are gated behind a paid tier, so the
+Space runs under the `gradio` SDK on ZeroGPU hardware — which allocates a GPU only inside
+`@spaces.GPU` calls, and this application never makes one — which serves this project's own FastAPI application rather than a Gradio
 interface, keeping the real frontend. A working Gradio interface onto the same pipeline is
 mounted at `/gradio/` as a hedge, because running FastAPI that way is not a documented
 pattern. The `Dockerfile` is still there and is still the better option wherever Docker
