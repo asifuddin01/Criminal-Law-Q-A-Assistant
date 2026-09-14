@@ -5,7 +5,7 @@ exact substring test called fabricated, or the reverse — a label dressed up as
 that must not pass however convenient it would be.
 """
 
-from app.qa.quoting import MIN_QUOTE_CHARS, canonical, check_quote
+from app.qa.quoting import MIN_QUOTE_CHARS, SourceIndex, canonical, check_quote
 
 # As bdlaws renders it: the substituted words carry brackets, and words repealed
 # out of the provision leave "[* * *]" behind.
@@ -195,3 +195,112 @@ def test_a_quotation_that_is_mostly_invented_is_not_rescued_by_its_opening():
 def test_the_trimmed_prefix_must_still_clear_the_length_floor():
     body = "54. Any police-officer may arrest without warrant any person concerned."
     assert not check_quote("Any police-officer may " + "x" * 400, body).verified
+
+
+# Shaped like section 154, where the hosted model's first unverifiable quotation came
+# from: the words exact, the hyphen in "police-station" typed as U+2011.
+SECTION_154 = (
+    "154. Every information relating to the commission of a cognizable offence if "
+    "given orally to an officer in charge of a police-station, shall be reduced to "
+    "writing by him or under his direction."
+)
+
+# Shaped like section 494: a clause, then two consequences in a fixed order.
+WITHDRAWAL = (
+    "494. Any Public Prosecutor may, with the consent of the Court, at any time "
+    "before the judgment is pronounced, withdraw from the prosecution of any person "
+    "either generally or in respect of any one or more of the offences for which he "
+    "is tried; and upon such withdrawal,- (a) if it is made before a charge has been "
+    "framed, the accused shall be discharged in respect of such offence or offences; "
+    "(b) if it is made after a charge has been framed, he shall be acquitted in "
+    "respect of such offence or offences."
+)
+
+
+def test_a_non_breaking_hyphen_is_the_hyphen_the_statute_has():
+    """U+2011 renders exactly like "-". The corpus contains none, so a quotation
+    typed with one could never match however faithful its words."""
+    quote = "if given orally to an officer in charge of a police\u2011station"
+    checked = check_quote(quote, SECTION_154)
+    assert checked.verified
+    assert checked.repair == ""
+
+
+def test_folding_the_hyphen_admits_no_other_words():
+    """The fold changes a character, never a word. What follows the hyphen here is
+    invented, and it must not reach the reader — at most the verbatim opening does,
+    under the trimmed-prefix allowance, and is labelled as such."""
+    quote = "if given orally to an officer in charge of a police\u2011outpost"
+    checked = check_quote(quote, SECTION_154)
+    assert "outpost" not in checked.quote
+    assert checked.repair != ""
+
+
+def test_an_elided_fragment_may_end_on_its_own_full_stop():
+    """The statute reads "tried; and"; a quotation stopping there ends with "tried."."""
+    quote = (
+        "Any Public Prosecutor may, with the consent of the Court, ... withdraw from "
+        "the prosecution of any person either generally or in respect of any one or "
+        "more of the offences for which he is tried."
+    )
+    checked = check_quote(quote, WITHDRAWAL)
+    assert checked.verified
+    assert checked.repair == "elision"
+
+
+def test_edge_punctuation_does_not_pad_a_fragment_past_the_floor():
+    """ "tried." is five words' worth of nothing once its full stop is set aside, and
+    it must not pass as an elided piece. The opening may still be shown on its own,
+    by the prefix allowance — but not as an elision."""
+    quote = "Any Public Prosecutor may, with the consent of the Court, ... tried."
+    checked = check_quote(quote, WITHDRAWAL)
+    assert "elision" not in checked.repair
+    assert "tried" not in checked.quote
+
+
+def _index():
+    return SourceIndex([("CrPC:494", WITHDRAWAL), ("CrPC:154", SECTION_154)])
+
+
+def test_the_cited_sections_own_words_cut_too_short_are_overelided_not_fabricated():
+    """Rejected — "shall" is not evidence of anything — but every word is the
+    section's, in its order. Scoring it as invented law was the error."""
+    quote = (
+        "Any Public Prosecutor may, with the consent of the Court, ... shall ... be "
+        "acquitted in respect of such offence or offences"
+    )
+    assert not check_quote(quote, WITHDRAWAL).verified
+    assert _index().explain(quote, WITHDRAWAL) == "overelided"
+
+
+def test_real_pieces_put_in_an_order_the_statute_does_not_are_recomposed():
+    """Both pieces are real. Joined this way they say that a withdrawal after a
+    charge leads to discharge, which the section does not say."""
+    quote = (
+        "(b) if it is made after a charge has been framed ... the accused shall be "
+        "discharged in respect of such offence"
+    )
+    assert not check_quote(quote, WITHDRAWAL).verified
+    assert _index().explain(quote, WITHDRAWAL) == "recomposed"
+
+
+def test_an_elision_with_an_invented_piece_is_still_fabrication():
+    quote = (
+        "Any Public Prosecutor may, with the consent of the Court, ... withdraw the "
+        "charge without the leave of any Court whatsoever"
+    )
+    assert not check_quote(quote, WITHDRAWAL).verified
+    assert _index().explain(quote, WITHDRAWAL) == "fabricated"
+
+
+def test_an_elided_quotation_of_another_section_is_misattributed():
+    quote = (
+        "Every information relating to the commission of a cognizable offence ... "
+        "shall be reduced to writing by him or under his direction"
+    )
+    assert _index().explain(quote, WITHDRAWAL) == "misattributed:CrPC:154"
+
+
+def test_a_whole_quotation_found_nowhere_is_fabricated():
+    quote = "The Public Prosecutor may withdraw any prosecution at will"
+    assert _index().explain(quote, WITHDRAWAL) == "fabricated"

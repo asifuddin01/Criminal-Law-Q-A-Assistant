@@ -38,6 +38,12 @@ class QuestionScore:
     # second is the model inventing law.
     quotes_misattributed: int = 0
     quotes_fabricated: int = 0
+    # Neither of those. The cited section's own words, in order, elided down to a
+    # piece too short to be evidence; and real pieces of statute assembled into a
+    # sentence the statute does not contain. Both are rejected. Neither is invented
+    # text, and both were being counted as if they were.
+    quotes_overelided: int = 0
+    quotes_recomposed: int = 0
 
     retrieved: int = 0
     retrieval_hit: bool = False
@@ -173,10 +179,17 @@ def score_question(
                 score.quotes_repaired += int(bool(checked.repair))
             else:
                 score.unsupported_quotes.append(citation.quote[:120])
-                found = sources.locate(citation.quote) if sources else None
-                if found:
+                verdict = (
+                    sources.explain(citation.quote, body) if sources else "fabricated"
+                )
+                if verdict.startswith("misattributed:"):
+                    found = verdict.split(":", 1)[1]
                     score.quotes_misattributed += 1
                     score.misattributed_to.append(f"{citation.document}:{number}->{found}")
+                elif verdict == "overelided":
+                    score.quotes_overelided += 1
+                elif verdict == "recomposed":
+                    score.quotes_recomposed += 1
                 else:
                     score.quotes_fabricated += 1
 
@@ -206,6 +219,8 @@ def aggregate(scores: list[QuestionScore]) -> dict:
     repaired_quotes = sum(s.quotes_repaired for s in measured)
     misattributed = sum(s.quotes_misattributed for s in measured)
     fabricated = sum(s.quotes_fabricated for s in measured)
+    overelided = sum(s.quotes_overelided for s in measured)
+    recomposed = sum(s.quotes_recomposed for s in measured)
 
     by_slice: dict[str, dict] = {}
     for score in scores:
@@ -257,10 +272,16 @@ def aggregate(scores: list[QuestionScore]) -> dict:
         # first is a chunking failure, the second the model inventing law.
         "misattribution_rate": _ratio(misattributed, quotes),
         "fabrication_rate": _ratio(fabricated, quotes),
+        # The rest of the rejections, so the four shares and excerpt validity
+        # account for every quotation checked.
+        "overelision_rate": _ratio(overelided, quotes),
+        "recomposition_rate": _ratio(recomposed, quotes),
         "quotes_checked": quotes,
         "quotes_repaired": repaired_quotes,
         "quotes_misattributed": misattributed,
         "quotes_fabricated": fabricated,
+        "quotes_overelided": overelided,
+        "quotes_recomposed": recomposed,
         "refusal_accuracy": _ratio(
             sum(1 for s in measured if s.decided_correctly), len(measured)
         ),

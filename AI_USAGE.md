@@ -367,3 +367,41 @@ The tell is tense and specificity together: a design document that says what the
 and takes minutes — grep the docs for each capability claimed, then grep the source for
 it — and it is worth running before anyone else reads the repository, because the cost
 of being caught overstating is not proportional to the size of the overstatement.
+
+### 13. A scorer tuned to one model's habits, and a resume that would have resumed nothing
+
+**What happened.** Two defects, both in work I had written, both found only when the hosted
+model finally completed a stage the local one had already run.
+
+The documentation said hosted stage 3 had "47 of 101 answers banked" and would resume from
+cache. It would not have. Answers are cached under a key that includes the prompt — correctly,
+so that a changed prompt is never served stale answers — and I had changed the prompt after
+those 47 were recorded. The cache design and the prompt change were both mine, and neither
+edit asked whether the sentence about the bank was still true.
+
+The second was in the scorer. Hosted stage 4 reported 11.2% fabrication, worse than its own
+stage 2 and worse than the local model while every other metric improved. I had written the
+rule that classifies a rejected quotation as fabricated or misattributed, and it looked a
+failed quotation up in other sections as one string — ellipsis included, which appears in no
+statute. Every rejected elision was therefore "invented text", however real its words. The
+local model rarely elides, so nothing exposed it. The hosted model elides freely and types
+hyphens as U+2011, which the corpus never contains.
+
+**How it was caught.** The bank by checking before spending: computing the harness's cache keys
+for every question under the current prompt, with no model call, returned 0 of 101. The scorer
+by refusing to publish a number that moved the wrong way — every one of the 18 quotations was
+read, split at its ellipses, and each piece located in the corpus. Three were fabrications.
+
+**Correction.** Docs corrected to say both stages ran from nothing. In the scorer: U+2010/U+2011
+folded to a plain hyphen, edge punctuation ignored on elided pieces, and rejections classified
+four ways — misattributed, fabricated, over-elided, recomposed — so a faithful elision cut too
+short and a reordering of real text are no longer called invented law. Every run re-scored
+from stored answers, so only the measurement changed: the baselines stay at 100% fabricated,
+the local runs do not move, hosted stage 4 falls from 11.2% to 1.9%. Recorded as an amendment
+to ADR 0011.
+
+**Lesson recorded.** A measurement calibrated on one model is calibrated on that model's
+typing habits. The allowances were right for the text they were written against, and the
+first run on a different model is where they get tested, not where they get trusted. The
+cue was a metric that moved against every other metric; that shape is worth reading one
+case at a time before it is written down anywhere.

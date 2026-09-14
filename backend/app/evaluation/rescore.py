@@ -34,7 +34,7 @@ from app.retrieval.chunking import ACT_DOCUMENTS, document_for
 
 # Bumped when the scorer changes in a way that moves numbers. Recorded in every
 # summary this writes, so two rows in one table can be told apart.
-SCORER_VERSION = "2026-09-12-trimmed-prefix"
+SCORER_VERSION = "2026-09-14-hyphens-and-elisions"
 
 
 def _load_answers(run: pathlib.Path) -> dict[str, Answer]:
@@ -123,6 +123,8 @@ def rescore(run: pathlib.Path, *, dry_run: bool = False) -> int:
         ("  matched as written", "excerpt_validity_unrepaired"),
         ("misattribution rate", "misattribution_rate"),
         ("fabrication rate", "fabrication_rate"),
+        ("over-elision rate", "overelision_rate"),
+        ("recomposition rate", "recomposition_rate"),
         ("citation existence", "citation_existence"),
         ("citation precision", "citation_precision"),
         ("answer hit rate", "answer_hit_rate"),

@@ -23,12 +23,21 @@ determine the next change.
 | **Citation existence** | Of sections cited, the fraction that exist in the document the citation names | Section numbers repeat across acts, so a citation resolved against the wrong document would be confirmed as readily as a right one. |
 
 "Its own words" is not quite a raw substring test, and the difference is worth stating.
-bdlaws' amendment brackets and its `[* * *]` marks are canonicalised away on both sides; an
-ellipsis is read as an elision and each segment checked in order; and a citation label the
-model copied in front of the text is trimmed before the remainder is required to match.
+bdlaws' amendment brackets and its `[* * *]` marks are canonicalised away on both sides, and a
+non-breaking hyphen (U+2011) is read as the hyphen it renders as; an ellipsis is read as an
+elision and each segment checked in order, ignoring the punctuation at its edges; and a
+citation label the model copied in front of the text is trimmed before the remainder is
+required to match.
 None of that admits a word the section does not contain — the stage 1 baseline, quoting from
 memory, is rescued by none of it — and the reasoning is in
 [ADR 0011](../docs/adr/0011-what-counts-as-a-verbatim-quotation.md).
+
+A quotation that fails is reported as exactly one of four things, because they call for
+different fixes: **misattributed** — real text from another section, a chunking failure;
+**fabricated** — text found in no section, the model writing law; **over-elided** — the
+cited section's own words in its order, cut to a piece too short to be evidence; and
+**recomposed** — real pieces joined in an order the statute does not use, which states a
+proposition the law does not. Excerpt validity and the four shares add up to 100%.
 
 Every metric reported is deterministic. Recall@k, excerpt validity and citation existence
 need no labels beyond the corpus itself; citation precision and answer hit rate are

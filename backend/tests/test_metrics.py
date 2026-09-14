@@ -284,3 +284,55 @@ def test_real_text_under_the_wrong_section_is_not_scored_as_fabrication():
     summary = aggregate([score])
     assert summary["misattribution_rate"] == 0.5
     assert summary["fabrication_rate"] == 0.5
+
+
+def test_a_faithful_but_overelided_quotation_is_not_scored_as_fabrication():
+    """Every word is the section's, in its order; one piece is too short to count.
+
+    Rejected, correctly. But the scorer used to look the whole string up — ellipsis
+    and all — in every section, find it nowhere, and call it invented law. On the
+    hosted model at stage 4 that was ten of the eighteen "fabrications".
+    """
+    code = _act(
+        "494",
+        (
+            "494. Any Public Prosecutor may, with the consent of the Court, at any "
+            "time before the judgment is pronounced, withdraw from the prosecution "
+            "of any person; and upon such withdrawal, if it is made after a charge "
+            "has been framed, he shall be acquitted in respect of such offence."
+        ),
+        note="Effect of withdrawal from prosecution",
+    )
+    answer = Answer(
+        text="...",
+        citations=[
+            Citation(
+                section="494",
+                source="CrPC",
+                # The verbatim opening is kept short, so the prefix allowance cannot
+                # show it on its own and the quotation stays rejected — which is the
+                # case being scored.
+                quote=(
+                    "Any Public Prosecutor ... shall ... be acquitted in respect of "
+                    "such offence"
+                ),
+            )
+        ],
+        retrieved_sections=["CrPC:494"],
+    )
+
+    score = score_question(_question(), answer, {CRPC: code})
+    summary = aggregate([score])
+
+    assert score.quotes_checked == 1
+    assert score.quotes_valid == 0
+    assert score.quotes_overelided == 1
+    assert score.quotes_fabricated == 0
+    # Every checked quotation lands in exactly one place.
+    assert (
+        summary["excerpt_validity"]
+        + summary["misattribution_rate"]
+        + summary["fabrication_rate"]
+        + summary["overelision_rate"]
+        + summary["recomposition_rate"]
+    ) == 1.0

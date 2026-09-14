@@ -111,3 +111,43 @@ must appear in the section cited.
 Reporting two rates rather than one is the honest form of this decision. Anyone who
 disagrees with an allowance can read the stricter column, which is published beside the
 looser one for every stage.
+
+## Amendment — 2026-09-14: two artifacts, and what a failed elision is
+
+The hosted model's first complete stage 4 reported **11.2% fabrication** — worse than its
+own stage 2 (3.9%) and than the local model at stage 4 (6.2%), while every other metric
+improved. Read one at a time, **3 of the 18 were fabrications.** The rest were three
+defects in how quotations were checked and classified, all invisible on the local model,
+whose habits the allowances above were written against.
+
+- **A non-breaking hyphen.** `gpt-oss-120b` writes "police‑station" with U+2011. The
+  corpus contains no U+2010 or U+2011 at all, so a quotation containing one could not
+  match however faithful its words. Both are now folded to `-` on both sides. En and em
+  dashes are not: they are different marks, and the corpus has en dashes of its own.
+  Three quotations.
+- **Punctuation at the edge of an elided piece.** "…for which he is tried." where the
+  statute reads "tried; and". The punctuation at either edge of a piece is the quoter's.
+  The 20-character floor is applied to the words that remain, so it cannot pad a piece
+  past it. One quotation.
+- **Every failed elision was counted as fabrication.** The fallback that asks which
+  section a failed quotation really came from was handed the whole string, ellipsis
+  included — and an ellipsis appears in no statute. So a rejected elision was always
+  "invented text", however real its words. Rejections are now classified four ways:
+  *misattributed* (real text, another section), *fabricated* (text found in no section),
+  *over-elided* (the cited section's own words, in its order, with a piece too short to be
+  evidence) and *recomposed* (real pieces joined in an order, or from places, the statute
+  does not use). The last two remain rejections. They are not fabrications, and a
+  recomposed quotation — real words, a proposition the law does not state — is a failure
+  worth its own name.
+
+Measured by re-scoring the same stored answers, so only the measurement changed:
+
+| run | excerpt validity | fabricated | over-elided | recomposed |
+| --- | --- | --- | --- | --- |
+| hosted stage 2 | 95.4% → 96.2% | 3.9% → 2.3% | 0.8% | 0.0% |
+| hosted stage 4 | 88.8% → 91.3% | 11.2% → 1.9% | 6.2% | 0.6% |
+
+**Unchanged, which is the evidence this is a correction:** both baselines stay at 0.0%
+valid and 100% fabricated — the hosted baseline carries twenty non-breaking hyphens and
+not one of its quotations is rescued — and all three local runs, which contain no
+non-ASCII hyphens and no rejected elisions, do not move by a tenth of a point.

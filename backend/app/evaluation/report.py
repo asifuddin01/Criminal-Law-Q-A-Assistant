@@ -191,30 +191,43 @@ def chart_hallucination(runs: list[dict], *, model: str = "") -> pathlib.Path:
 
     fabricated = [rate(r, "fabrication_rate") for r in runs]
     misattributed = [rate(r, "misattribution_rate") for r in runs]
+    # Rejected, and real: the cited section's words elided too far, or real pieces
+    # reordered. Neither is invented text, so neither belongs in the fabrication
+    # bar — and leaving them out of the chart would make the bars stop adding up.
+    reassembled = [
+        rate(r, "overelision_rate") + rate(r, "recomposition_rate") for r in runs
+    ]
 
-    fig, ax = plt.subplots(figsize=(7.6, 4.2))
-    width = 0.26
+    fig, ax = plt.subplots(figsize=(8.4, 4.2))
+    width = 0.2
     positions = range(len(runs))
     ax.bar(
-        [p - width for p in positions],
+        [p - 1.5 * width for p in positions],
         hallucinated,
         width,
         label="Citations to sections that do not exist",
         color=SERIES[1],
     )
     ax.bar(
-        list(positions),
+        [p - 0.5 * width for p in positions],
         fabricated,
         width,
         label="Quotations found in no section at all",
         color=SERIES[3],
     )
     ax.bar(
-        [p + width for p in positions],
+        [p + 0.5 * width for p in positions],
         misattributed,
         width,
         label="Real text, quoted under the wrong section",
         color=SERIES[4],
+    )
+    ax.bar(
+        [p + 1.5 * width for p in positions],
+        reassembled,
+        width,
+        label="Real text, elided too far or reordered",
+        color=SERIES[2],
     )
     ax.set_xticks(list(positions))
     ax.set_xticklabels(labels, color=INK)
@@ -361,6 +374,8 @@ STRICT = ("excerpt_validity_unrepaired", "Excerpt validity (as written)")
 SPLIT = [
     ("misattribution_rate", "Misattributed"),
     ("fabrication_rate", "Fabricated"),
+    ("overelision_rate", "Over-elided"),
+    ("recomposition_rate", "Recomposed"),
 ]
 
 

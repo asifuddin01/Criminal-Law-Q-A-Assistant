@@ -18,8 +18,8 @@ advance so that a stage producing no improvement is visibly a result rather than
 | 0 | Harness, gold dataset, no retrieval | Done |
 | 1 | LLM-only baseline | Done |
 | 2 | Naive fixed-size chunking, dense retrieval | Complete on both models |
-| 3 | Legal-aware chunking on section boundaries | Complete on local model; **hosted run in progress** (see below) |
-| 4 | Full corpus: Schedule II and Penal Code, with structured offence lookup | Complete on local model |
+| 3 | Legal-aware chunking on section boundaries | Complete on local model; **hosted run in progress**, paced by the token budget (see below) |
+| 4 | Full corpus: Schedule II and Penal Code, with structured offence lookup | Complete on both models |
 | — | Hybrid retrieval (BM25 + dense, RRF) | **Planned, then dropped — see below** |
 | — | Reranking | Not started |
 | — | Prompt and refusal behaviour | Folded into stages 3 and 4 rather than run separately |
@@ -78,18 +78,20 @@ from one change, and the direct measurement of the claim that a chunk must not c
 section boundary. Fabrication is what retrieval fixes, falling monotonically at every stage.
 Neither number is visible when the two are added together.
 
-**Hosted model** (`openai/gpt-oss-120b`), stages 1 and 2 complete. Stages 3 and 4 are **in
-progress and rate-limited, not abandoned** — see [the note below](#hosted-stages-3-and-4-in-progress). These runs predate six questions added to the gold set later, so they
-cover 93 and 95 of 101 and are not directly comparable with the local rows above:
+**Hosted model** (`openai/gpt-oss-120b`), stages 1, 2 and 4 complete; stage 3 **running,
+paced by the token budget** — see [the note below](#hosted-stages-3-and-4). Stages 1 and 2
+predate questions added to the gold set later, so they cover 93 and 95 of 101; stage 4
+covers all 101:
 
 | Stage | Retrieval recall | Citation precision | Answer hit rate | Excerpt validity | Refusal accuracy |
 |---|---|---|---|---|---|
 | 1 — LLM only | n/a | 17.9% | 24.0% | **0.0%** | 86.0% |
-| 2 — naive chunks | 45.5% | 54.9% | 51.9% | **95.4%** | 66.3% |
+| 2 — naive chunks | 45.5% | 54.9% | 51.9% | **96.2%** | 66.3% |
+| 4 — full corpus + offence lookup | 81.8% | **72.9%** | **83.1%** | 91.3% | **87.1%** |
 
-The hosted model quotes far more faithfully than the local one (95.4% against 52.9% at the
-same stage) and refuses far less readily (66.3% against 90.1%). Both are visible only
-because the same dataset and the same scorer are used for both.
+The hosted model quotes far more faithfully than the local one (96.2% against 52.9% at stage
+2) and, at stage 4, finds the right provision far more often. Both are visible only because
+the same dataset and the same scorer are used for both.
 
 **The baseline is the control the rest of the table depends on.** On both models, stage 1
 quotes from memory with no statutory text in front of it, and **every single quotation —
@@ -98,42 +100,61 @@ corpus.** Not one is real. That is the number every later stage is measured agai
 is why the allowances described in [ADR 0011](docs/adr/0011-what-counts-as-a-verbatim-quotation.md)
 can be read as a correction rather than a loosened threshold: they rescue none of it.
 
-## Hosted stages 3 and 4: in progress
+## Hosted stages 3 and 4
 
-**Status: paced by a free-tier daily token budget, not blocked and not abandoned.**
+**Stage 4 is complete on the hosted model. Stage 3 is running, paced by the free-tier daily
+token budget.**
 
-The hosted track (`openai/gpt-oss-120b`) has stages 1 and 2 complete. Stage 3 has run twice
-and stopped both times on the provider's daily allowance:
+**Stage 4, beside the local model at the same stage.** Retrieval is identical — the same
+index, the same offence lookup, 81.8% recall on both — and both runs cover all 101 questions
+with no errors:
 
-```
-DAILY TOKEN BUDGET EXHAUSTED — no results written
-  provider budget : 198,225 / 200,000 tokens used today
-  answers cached  : 47 of 101 (54 still needed)
-```
+| stage 4 | Citation precision | Answer hit rate | Direct lookups cited correctly | Excerpt validity | as written | Fabricated | Refusal accuracy |
+|---|---|---|---|---|---|---|---|
+| local `qwen2.5:3b-instruct` | 59.1% | 61.0% | 76% | 87.5% | 62.5% | 6.2% | **90.1%** |
+| hosted `gpt-oss-120b` | **72.9%** | **83.1%** | **98%** | **91.3%** | 60.9% | **1.9%** | 87.1% |
 
-**Nothing is lost between attempts.** Answers are cached by content hash, so each run resumes
-rather than restarts — 47 of the 101 answers are already banked, and the remaining 54 need
-roughly 108,000 tokens, which fits inside one day's allowance. The budget refills
-continuously at about 8,300 tokens an hour rather than resetting at a fixed time.
+The stronger model reaches the right provision far more often from the same retrieved text,
+and invents less of what it quotes. It is not better everywhere: it refuses a little less
+readily when it should (62.5% of unanswerable questions against 66.7%) and a little more when
+it should not (5.2% of answerable ones against 2.6%), and its Bangla slice is weaker on
+refusal (60% against 100%). The ambiguous slice is poor on both.
+
+**Not quite like-for-like, and why.** Every earlier RAG run on both tracks was recorded
+before 2026-09-12 18:19, when the prompt gained the rule asking for short quotations. This
+run used the current prompt. Retrieval and data are identical, so the gap above is the model
+and that rule together, not the model alone. For the same reason, hosted stage 2 to stage 4
+changes the prompt as well as the corpus.
+
+**The first score was wrong, and was corrected before it was published.** Scored as
+recorded, this run reported 11.2% fabrication — worse than its own stage 2 and the local
+model's stage 4 while every other metric improved. Read one at a time, 3 of those 18
+quotations were fabrications. The rest were a non-breaking hyphen the corpus never contains,
+an elided piece ending on its own full stop, and a classifier that counted every rejected
+elision as invented text. The correction, and its effect on every run, is in
+[ADR 0011's amendment](docs/adr/0011-what-counts-as-a-verbatim-quotation.md#amendment--2026-09-14-two-artifacts-and-what-a-failed-elision-is);
+the figures on this page are after it.
+
+**The 47 "banked" answers were not reusable.** Answers are cached under a key that includes
+the prompt, and the prompt changed after they were recorded. Checked across the dataset
+without a model call before anything was spent: 0 of 101 answers were reusable for stage 3
+or stage 4. Both stages were run from nothing.
+
+**What it cost.** 101 answers at about 2,500 tokens each on average — `gpt-oss-120b` reasons
+before answering, and a single stage 3 call measured 4,300 — over 6 hours 21 minutes. About 80
+answers fit in the first burst of the allowance; the rest came in as it refilled, at roughly
+three answers an hour. The allowance is a rolling 24-hour window, not a daily reset: tokens
+spent return 24 hours after they were spent, so stage 3 gets most of its budget back a day
+after stage 4's burst and is expected to complete on 15 or early 16 September.
 
 **Nothing partial is written, deliberately.** The harness refuses to emit a half-finished
-sweep: the gold set is ordered, so stopping early biases whichever slices come last, and a
-biased result that looks like a measurement is worse than no result. What it writes instead
-is the choice — wait for the refill, or re-run the whole stage on the local model, which is
-free and unlimited but lands on a separate track so the two are never compared.
-
-To resume:
+sweep: the gold set is ordered, so stopping early biases whichever slices come last. Run with
+`--wait-for-budget`, it sleeps through a spent allowance and resumes from cache. If
+interrupted:
 
 ```bash
-cd backend && uv run python -m app.evaluation.harness --stage 3 --provider groq
+cd backend && uv run python -m app.evaluation.harness --stage 3 --provider groq --wait-for-budget
 ```
-
-**What this costs the conclusions: nothing.** The four-stage progression is measured
-end-to-end on `qwen2.5:3b-instruct`, where the model is constant across stages and every
-movement is attributable to the pipeline. The hosted track exists to show how the same
-pipeline behaves with a stronger model, and stage 2 already does: 95.4% excerpt validity
-against the local model's 42.9% at the identical stage, on the same dataset and the same
-scorer. Stages 3 and 4 would extend that comparison, not establish it.
 
 ## Entries
 

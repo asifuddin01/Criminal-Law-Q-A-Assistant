@@ -56,6 +56,18 @@ _LEADING_LABEL = re.compile(r"^\s*(?:section\s+)?\d+\s*-?\s*[A-Za-z]{0,3}\s*[.\-
 # compared against whatever the corpus holds, and a corpus is re-fetched.
 _SPACED_PUNCTUATION = re.compile(r"\s+([,.;:)\]])")
 
+# Hyphens that are the statute's hyphen typed differently. The hosted model writes
+# "police‑station" with U+2011, a non-breaking hyphen; the corpus contains no U+2010
+# or U+2011 at all, so every such quotation failed on a character no reader can see.
+# Only these two: an en or em dash is a different mark, and the corpus has en dashes
+# of its own.
+_HYPHENS = str.maketrans({"\u2010": "-", "\u2011": "-"})
+
+# Punctuation at the edge of an elided fragment belongs to whoever cut it there.
+# "for which he is tried." ends a quotation where the statute goes on "tried; and",
+# and the words are the statute's.
+_EDGE_PUNCTUATION = " ,;:."
+
 
 def canonical(text: str) -> str:
     """The section's own words, case- and whitespace-insensitive.
@@ -65,6 +77,7 @@ def canonical(text: str) -> str:
     carries and a quotation would not.
     """
     text = _ELIDED_BY_AMENDMENT.sub(" ", text)
+    text = text.translate(_HYPHENS)
     text = text.replace("[", " ").replace("]", " ")
     text = " ".join(text.split()).lower()
     return _SPACED_PUNCTUATION.sub(r"\1", text)
@@ -102,6 +115,17 @@ def _too_short(text: str) -> bool:
     return len(canonical(text)) < MIN_QUOTE_CHARS
 
 
+def _fragments(text: str) -> list[str]:
+    """A quotation's elided pieces, compared as words.
+
+    One piece when nothing was elided. The punctuation at either edge of a piece is
+    the quoter's, not the statute's, so it does not count against the match — and
+    the length floor is applied to what remains, so it cannot pad a piece past it.
+    """
+    pieces = (canonical(s).strip(_EDGE_PUNCTUATION) for s in _ELLIPSIS.split(text))
+    return [piece for piece in pieces if piece]
+
+
 def check_quote(quote: str, body: str, *, marginal_note: str = "") -> QuoteCheck:
     """Check a quotation against the text of the section it is attributed to.
 
@@ -121,9 +145,8 @@ def check_quote(quote: str, body: str, *, marginal_note: str = "") -> QuoteCheck
     for candidate, repair in _candidates(quote, marginal_note):
         if _too_short(candidate):
             continue
-        segments = [s for s in _ELLIPSIS.split(candidate) if canonical(s)]
-        if len(segments) > 1:
-            parts = [canonical(s) for s in segments]
+        parts = _fragments(candidate)
+        if len(parts) > 1:
             if any(len(p) < MIN_QUOTE_CHARS for p in parts):
                 # An elision leaving fragments this small stops being a quotation.
                 continue
@@ -239,6 +262,43 @@ class SourceIndex:
         # corpus is a few thousand sections and this runs only for quotations that
         # already failed, so the scan costs less than the indexing would.
         self._bodies = [(name, canonical(text)) for name, text in bodies if text]
+
+    def explain(self, quote: str, cited_body: str) -> str:
+        """Why a quotation that failed against `cited_body` failed.
+
+        One of four answers, because they are four different failures:
+
+          - ``misattributed:<section>`` — real text, from the section named.
+          - ``overelided`` — the cited section's own words, in its order, cut down
+            to a piece too short to count as evidence. Rejected, rightly; not
+            invented.
+          - ``recomposed`` — every piece is real statutory text, put together in an
+            order or from places the statute does not put them. The words are real
+            and the proposition is not, which is its own kind of failure.
+          - ``fabricated`` — some of the text appears nowhere in the corpus.
+
+        An elided quotation used to reach `locate` whole, ellipsis and all, where it
+        could never match anything — so every failed elision was counted as
+        fabrication, however faithful its words. On the hosted model, which elides
+        freely, that was most of what the fabrication rate contained.
+        """
+        pieces = _fragments(quote)
+        if len(pieces) <= 1:
+            found = self.locate(quote)
+            return f"misattributed:{found}" if found else "fabricated"
+
+        target = canonical(cited_body)
+        if all(piece in target for piece in pieces):
+            return "overelided" if _contains_in_order(target, pieces) else "recomposed"
+
+        if all(len(piece) >= MIN_QUOTE_CHARS for piece in pieces):
+            for name, body in self._bodies:
+                if _contains_in_order(body, pieces):
+                    return f"misattributed:{name}"
+
+        if all(any(piece in body for _, body in self._bodies) for piece in pieces):
+            return "recomposed"
+        return "fabricated"
 
     def locate(self, quote: str) -> str | None:
         """The section this text really belongs to, or None if it belongs to none."""

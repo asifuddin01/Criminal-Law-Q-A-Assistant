@@ -384,6 +384,8 @@ def _report(summary: dict) -> None:
         ("  of which matched as written", "excerpt_validity_unrepaired"),
         ("misattributed quotes", "misattribution_rate"),
         ("fabricated quotes", "fabrication_rate"),
+        ("over-elided quotes", "overelision_rate"),
+        ("recomposed quotes", "recomposition_rate"),
         ("refusal accuracy", "refusal_accuracy"),
         ("refused when unanswerable", "refused_when_unanswerable"),
         ("refused when answerable", "refused_when_answerable"),
