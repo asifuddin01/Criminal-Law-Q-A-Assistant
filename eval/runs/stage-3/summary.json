@@ -1,0 +1,86 @@
+{
+  "questions": 101,
+  "measured": 101,
+  "errors": 0,
+  "citations_made": 166,
+  "citation_existence": 1.0,
+  "hallucinated_citation_rate": 0.0,
+  "citation_precision": 0.7931,
+  "answer_hit_rate": 0.8052,
+  "retrieval_recall": 0.8052,
+  "excerpt_validity": 0.9091,
+  "excerpt_validity_unrepaired": 0.6242,
+  "misattribution_rate": 0.0,
+  "fabrication_rate": 0.0061,
+  "overelision_rate": 0.0848,
+  "recomposition_rate": 0.0,
+  "quotes_checked": 165,
+  "quotes_repaired": 47,
+  "quotes_misattributed": 0,
+  "quotes_fabricated": 1,
+  "quotes_overelided": 14,
+  "quotes_recomposed": 0,
+  "refusal_accuracy": 0.8416,
+  "refused_when_unanswerable": 0.5833,
+  "refused_when_answerable": 0.0779,
+  "by_slice": {
+    "direct_lookup": {
+      "n": 45,
+      "errors": 0,
+      "decided_correctly": 41,
+      "with_correct_citation": 39,
+      "measured": 45,
+      "refusal_accuracy": 0.9111
+    },
+    "multi_section": {
+      "n": 12,
+      "errors": 0,
+      "decided_correctly": 12,
+      "with_correct_citation": 11,
+      "measured": 12,
+      "refusal_accuracy": 1.0
+    },
+    "amended": {
+      "n": 10,
+      "errors": 0,
+      "decided_correctly": 10,
+      "with_correct_citation": 8,
+      "measured": 10,
+      "refusal_accuracy": 1.0
+    },
+    "unanswerable": {
+      "n": 15,
+      "errors": 0,
+      "decided_correctly": 14,
+      "with_correct_citation": 0,
+      "measured": 15,
+      "refusal_accuracy": 0.9333
+    },
+    "ambiguous": {
+      "n": 9,
+      "errors": 0,
+      "decided_correctly": 0,
+      "with_correct_citation": 0,
+      "measured": 9,
+      "refusal_accuracy": 0.0
+    },
+    "bangla": {
+      "n": 10,
+      "errors": 0,
+      "decided_correctly": 8,
+      "with_correct_citation": 4,
+      "measured": 10,
+      "refusal_accuracy": 0.8
+    }
+  },
+  "stage": 3,
+  "system": "rag-legal-chunks",
+  "provider": "groq",
+  "model": "openai/gpt-oss-120b",
+  "elapsed_seconds": 112443.2,
+  "cache_hits": 100,
+  "partial": false,
+  "rescored_with": "2026-09-14-hyphens-and-elisions",
+  "dataset_questions": 101,
+  "missing_answers": 0
+}

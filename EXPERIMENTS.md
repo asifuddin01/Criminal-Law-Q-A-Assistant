@@ -18,7 +18,7 @@ advance so that a stage producing no improvement is visibly a result rather than
 | 0 | Harness, gold dataset, no retrieval | Done |
 | 1 | LLM-only baseline | Done |
 | 2 | Naive fixed-size chunking, dense retrieval | Complete on both models |
-| 3 | Legal-aware chunking on section boundaries | Complete on local model; **hosted run in progress**, paced by the token budget (see below) |
+| 3 | Legal-aware chunking on section boundaries | Complete on both models |
 | 4 | Full corpus: Schedule II and Penal Code, with structured offence lookup | Complete on both models |
 | — | Hybrid retrieval (BM25 + dense, RRF) | **Planned, then dropped — see below** |
 | — | Reranking | Not started |
@@ -78,20 +78,29 @@ from one change, and the direct measurement of the claim that a chunk must not c
 section boundary. Fabrication is what retrieval fixes, falling monotonically at every stage.
 Neither number is visible when the two are added together.
 
-**Hosted model** (`openai/gpt-oss-120b`), stages 1, 2 and 4 complete; stage 3 **running,
-paced by the token budget** — see [the note below](#hosted-stages-3-and-4). Stages 1 and 2
-predate questions added to the gold set later, so they cover 93 and 95 of 101; stage 4
-covers all 101:
+**Hosted model** (`openai/gpt-oss-120b`), all four stages complete. Stages 1 and 2 predate
+questions added to the gold set later, so they cover 93 and 95 of 101; stages 3 and 4 cover
+all 101:
 
 | Stage | Retrieval recall | Citation precision | Answer hit rate | Excerpt validity | Refusal accuracy |
 |---|---|---|---|---|---|
 | 1 — LLM only | n/a | 17.9% | 24.0% | **0.0%** | 86.0% |
 | 2 — naive chunks | 45.5% | 54.9% | 51.9% | **96.2%** | 66.3% |
-| 4 — full corpus + offence lookup | 81.8% | **72.9%** | **83.1%** | 91.3% | **87.1%** |
+| 3 — legal-aware chunks | 80.5% | **79.3%** | 80.5% | 90.9% | 84.2% |
+| 4 — full corpus + offence lookup | **81.8%** | 72.9% | **83.1%** | 91.3% | **87.1%** |
 
-The hosted model quotes far more faithfully than the local one (96.2% against 52.9% at stage
-2) and, at stage 4, finds the right provision far more often. Both are visible only because
-the same dataset and the same scorer are used for both.
+**The stage 4 trade shows up on both models, which is what makes it a property of the
+pipeline rather than of one model.** Adding the Penal Code and Schedule II costs citation
+precision — 79.3% to 72.9% hosted, 66.3% to 59.1% local — because a thousand more chunks
+compete for the same eight retrieval slots. What it buys is the same on both: offence
+classification becomes answerable at all, and refusal accuracy rises (84.2% to 87.1% hosted,
+88.1% to 90.1% local).
+
+**Where the two models differ most is misattribution.** The local model quotes one section's
+words under another's at every retrieval stage — 18.6%, 5.4%, 6.2% — and the hosted model
+essentially never does: 0.8%, 0.0%, 0.0%. At stage 2 the windows that cause it are identical
+between the tracks. Chunking creates the opportunity; whether a model takes it is the model's
+property, and only running both shows which is which.
 
 **The baseline is the control the rest of the table depends on.** On both models, stage 1
 quotes from memory with no statutory text in front of it, and **every single quotation —
@@ -102,55 +111,64 @@ can be read as a correction rather than a loosened threshold: they rescue none o
 
 ## Hosted stages 3 and 4
 
-**Stage 4 is complete on the hosted model. Stage 3 is running, paced by the free-tier daily
-token budget.**
+**Both complete**, each 101 of 101 with no errors: stage 4 on 14 September, stage 3 on 16
+September.
 
-**Stage 4, beside the local model at the same stage.** Retrieval is identical — the same
-index, the same offence lookup, 81.8% recall on both — and both runs cover all 101 questions
-with no errors:
+Retrieval is identical between the tracks at each stage — same index, same offence lookup,
+80.5% and 81.8% recall on both — so what separates the rows is the model:
 
-| stage 4 | Citation precision | Answer hit rate | Direct lookups cited correctly | Excerpt validity | as written | Fabricated | Refusal accuracy |
-|---|---|---|---|---|---|---|---|
-| local `qwen2.5:3b-instruct` | 59.1% | 61.0% | 76% | 87.5% | 62.5% | 6.2% | **90.1%** |
-| hosted `gpt-oss-120b` | **72.9%** | **83.1%** | **98%** | **91.3%** | 60.9% | **1.9%** | 87.1% |
+| | Citation precision | Answer hit rate | Excerpt validity | Fabricated | Over-elided | Refusal accuracy |
+|---|---|---|---|---|---|---|
+| stage 3, local `qwen2.5:3b` | 66.3% | 63.6% | 83.9% | 10.8% | 0.0% | **88.1%** |
+| stage 3, hosted `gpt-oss-120b` | **79.3%** | **80.5%** | **90.9%** | **0.6%** | 8.5% | 84.2% |
+| stage 4, local | 59.1% | 61.0% | 87.5% | 6.2% | 0.0% | **90.1%** |
+| stage 4, hosted | 72.9% | **83.1%** | **91.3%** | 1.9% | 6.2% | 87.1% |
 
-The stronger model reaches the right provision far more often from the same retrieved text,
-and invents less of what it quotes. It is not better everywhere: it refuses a little less
-readily when it should (62.5% of unanswerable questions against 66.7%) and a little more when
-it should not (5.2% of answerable ones against 2.6%), and its Bangla slice is weaker on
-refusal (60% against 100%). The ambiguous slice is poor on both.
+By slice at stage 3 the gap is widest where a question needs more than one provision:
+multi-section questions carry a correct citation 92% of the time on the hosted model against
+58% on the local one, and Bangla questions 40% against 10%. The ambiguous slice is 0% on
+both — neither model asks for the clarification those questions need, which is the clearest
+remaining weakness in the system and is not a retrieval problem.
+
+**Over-elision is a hosted habit.** 8.5% of its stage 3 quotations and 6.2% of its stage 4
+ones are the cited section's own words, in the section's order, cut past the 20-character
+floor — this one from stage 4, where "if the Magistrate" is the piece that falls under it:
+
+> "if the Magistrate ... considers the charge to be groundless, he shall discharge the
+> accused and record his reasons for so doing."
+
+The local model does not produce one in any of its four runs. Rejecting them is
+right — "shall" is not evidence — but they are not fabrications, and calling them that is
+what the scorer used to do.
+
+**The first scores were wrong, and were corrected before publication.** Scored as recorded,
+stage 4 reported 11.2% fabrication and stage 3 reported 11.5%, both worse than hosted stage 2
+while every other metric improved. Read one quotation at a time, 3 of stage 4's 18 and 1 of
+stage 3's 19 were fabrications. The rest were a non-breaking hyphen the corpus never
+contains, an elided piece ending on its own full stop, and a classifier that counted every
+rejected elision as invented text. The correction and its effect on every run are in
+[ADR 0011's amendment](docs/adr/0011-what-counts-as-a-verbatim-quotation.md#amendment--2026-09-14-two-artifacts-and-what-a-failed-elision-is).
 
 **Not quite like-for-like, and why.** Every earlier RAG run on both tracks was recorded
-before 2026-09-12 18:19, when the prompt gained the rule asking for short quotations. This
-run used the current prompt. Retrieval and data are identical, so the gap above is the model
-and that rule together, not the model alone. For the same reason, hosted stage 2 to stage 4
-changes the prompt as well as the corpus.
-
-**The first score was wrong, and was corrected before it was published.** Scored as
-recorded, this run reported 11.2% fabrication — worse than its own stage 2 and the local
-model's stage 4 while every other metric improved. Read one at a time, 3 of those 18
-quotations were fabrications. The rest were a non-breaking hyphen the corpus never contains,
-an elided piece ending on its own full stop, and a classifier that counted every rejected
-elision as invented text. The correction, and its effect on every run, is in
-[ADR 0011's amendment](docs/adr/0011-what-counts-as-a-verbatim-quotation.md#amendment--2026-09-14-two-artifacts-and-what-a-failed-elision-is);
-the figures on this page are after it.
+before 2026-09-12 18:19, when the prompt gained the rule asking for short quotations. These
+two used the current prompt. Retrieval and data are identical, so the hosted-against-local
+gaps above are the model and that rule together, not the model alone.
 
 **The 47 "banked" answers were not reusable.** Answers are cached under a key that includes
-the prompt, and the prompt changed after they were recorded. Checked across the dataset
-without a model call before anything was spent: 0 of 101 answers were reusable for stage 3
-or stage 4. Both stages were run from nothing.
+the prompt, and the prompt had changed since they were recorded. Checked across the whole
+dataset without a model call, before anything was spent: 0 of 101 were reusable for either
+stage. Both ran from nothing.
 
-**What it cost.** 101 answers at about 2,500 tokens each on average — `gpt-oss-120b` reasons
-before answering, and a single stage 3 call measured 4,300 — over 6 hours 21 minutes. About 80
-answers fit in the first burst of the allowance; the rest came in as it refilled, at roughly
-three answers an hour. The allowance is a rolling 24-hour window, not a daily reset: tokens
-spent return 24 hours after they were spent, so stage 3 gets most of its budget back a day
-after stage 4's burst and is expected to complete on 15 or early 16 September.
+**What it cost.** Stage 4: 101 answers in 6 hours 21 minutes. Stage 3: 31 hours 12 minutes,
+nearly all of it waiting — it began the moment stage 4 had drained the allowance. About 2,500
+tokens an answer on average, because `gpt-oss-120b` reasons before it answers; one sampled
+call spent 4,300. The allowance is a rolling 24-hour window rather than a daily reset, so
+tokens return 24 hours after they are spent: roughly 80 answers fit in a burst, then about
+three an hour until the next day's burst.
 
 **Nothing partial is written, deliberately.** The harness refuses to emit a half-finished
 sweep: the gold set is ordered, so stopping early biases whichever slices come last. Run with
-`--wait-for-budget`, it sleeps through a spent allowance and resumes from cache. If
-interrupted:
+`--wait-for-budget` it sleeps through a spent allowance and resumes from cache:
 
 ```bash
 cd backend && uv run python -m app.evaluation.harness --stage 3 --provider groq --wait-for-budget

@@ -100,7 +100,15 @@ def _dataset_note(runs: list[dict]) -> str:
     if len(sizes) == 1 and len(measured) == 1:
         return f"same {sizes.pop()} questions throughout, all measured"
     if len(sizes) == 1:
-        return f"the same {sizes.pop()} questions at every stage"
+        # One gold set, but the stages do not all cover the same amount of it: the
+        # hosted stages 1 and 2 were recorded before the set grew. Saying "the same
+        # 101 questions at every stage" over labels reading 93/93 and 95/95 is the
+        # caption contradicting the axis, which is the failure this function exists
+        # to prevent and which it committed anyway.
+        return (
+            f"{sizes.pop()}-question set; stages cover different parts of it — "
+            "see the labels below"
+        )
     return "question counts differ between stages — see the labels below"
 
 

@@ -145,7 +145,14 @@ Measured by re-scoring the same stored answers, so only the measurement changed:
 | run | excerpt validity | fabricated | over-elided | recomposed |
 | --- | --- | --- | --- | --- |
 | hosted stage 2 | 95.4% → 96.2% | 3.9% → 2.3% | 0.8% | 0.0% |
+| hosted stage 3 | 88.5% → 90.9% | 11.5% → 0.6% | 8.5% | 0.0% |
 | hosted stage 4 | 88.8% → 91.3% | 11.2% → 1.9% | 6.2% | 0.6% |
+
+Hosted stage 3 finished two days after this amendment was written and is included on the
+same terms: its harness process had loaded the scorer before the correction, so it was scored
+under the old rule and re-scored under the new one from its stored answers. One of its
+fifteen rejected quotations is a fabrication. Fourteen are the section's own words elided
+past the floor.
 
 **Unchanged, which is the evidence this is a correction:** both baselines stay at 0.0%
 valid and 100% fabricated — the hosted baseline carries twenty non-breaking hyphens and

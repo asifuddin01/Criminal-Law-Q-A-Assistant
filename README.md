@@ -17,8 +17,8 @@ says so rather than producing one.
 
 **Live demo: [huggingface.co/spaces/asifuddin01/criminal-law-qa-bangladesh](https://huggingface.co/spaces/asifuddin01/criminal-law-qa-bangladesh)**
 
-Complete and measured end to end on the local model; the hosted model has completed stages 1,
-2 and 4, and stage 3 is running on its free-tier token budget. This table is the honest state of the repository, not
+Complete and measured end to end on both models — four stages each, 101 questions, one scorer
+over every run. This table is the honest state of the repository, not
 a roadmap.
 
 | Component | State |
@@ -29,8 +29,7 @@ a roadmap.
 | Backend service, provider abstraction | **Built and tested** — Groq and Ollama, switchable from the interface |
 | Ingestion pipeline | **Built and tested** — 522 sections, 599 amendments parsed |
 | Retrieval and generation | **Complete** — four stages measured end to end |
-| Hosted stage 4 | **Complete** — 101 of 101 measured, 83.1% answer hit rate, 1.9% of quotations fabricated |
-| Hosted stage 3 | **Running**, paced by the free-tier token budget; resumes from cache if interrupted |
+| Hosted stages 3–4 | **Complete** — 101 of 101 at both, 83.1% answer hit rate at stage 4, 0.6–1.9% of quotations fabricated |
 | Corpus | CrPC (522 sections), Schedule II (376 offence rows), Penal Code (555 sections) |
 | Evaluation dataset | **Built** — 101 questions, every label verified against fetched text |
 | Frontend | **Delivered** — text, speech, image and document input, with verified citations |
@@ -428,17 +427,15 @@ more chunks compete for the same eight retrieval slots — and what is bought is
 to answer offence-classification questions at all, the lowest fabrication rate of any stage,
 and the best refusal accuracy. Act-aware ranking is the obvious response and is not built.
 
-The hosted model (`openai/gpt-oss-120b`) has completed stages 1, 2 and 4. At stage 4, with
-retrieval identical to the local run (81.8% recall on both), it cites the right provision far
-more often — 83.1% answer hit rate against 61.0%, 72.9% citation precision against 59.1%, and
-a correct citation on 98% of direct lookups against 76% — and invents less of what it quotes:
-1.9% of its quotations appear in no section, against 6.2%. It refuses a little less readily
-than the local model when it should (62.5% of unanswerable questions against 66.7%). The
-prompt is not identical between the two runs — the local sweep predates the rule asking for
-short quotations — so the gap is the model and that rule together.
-
-**Hosted stage 3 is running**, paced by a free-tier token budget that refills on a rolling
-24-hour window; answers resume from cache. Detail, costs and the resume command are in
+The hosted model (`openai/gpt-oss-120b`) has completed all four stages. At stages 3 and 4 it
+retrieves exactly what the local model retrieves — the same index, 80.5% and 81.8% recall —
+and does more with it: 79.3% citation precision against 66.3% at stage 3, an 83.1% answer hit
+rate against 61.0% at stage 4, and near-zero misattribution throughout (0.0% against 5.4% and
+6.2%) where the local model quotes one section's words under another's. It refuses slightly
+less readily than the local model when it should. The prompt is not identical across the two
+tracks — the local sweep predates the rule asking for short quotations — so the gap is the
+model and that rule together. Costs, the per-slice breakdown and the hosted model's own
+weakness (quotations elided past the point of being evidence) are in
 [EXPERIMENTS.md](EXPERIMENTS.md#hosted-stages-3-and-4).
 
 ## Limitations
