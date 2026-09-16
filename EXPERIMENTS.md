@@ -834,3 +834,128 @@ were reaching the model no longer do. What is bought with that is the ability to
 offence-classification questions at all, a further fall in fabrication (17.2% to 12.5%), and
 the best refusal accuracy of any stage. Recorded as a trade rather than an improvement,
 because that is what it is, and act-aware ranking is the obvious response to it.
+
+### 2026-09-14 — Hosted stage 4, and a scorer tuned to one model's habits
+
+**Objective.** Run stage 4 on `openai/gpt-oss-120b` — the stage the local model had already
+completed — so the full-corpus pipeline is measured on both models rather than one.
+
+**Method.** The same 101 questions, the same `legal_aware_schedule` index, the same offence
+lookup. Run with `--wait-for-budget`, which sleeps through a spent allowance and resumes from
+cache rather than writing a partial sweep.
+
+**What the cache was worth: nothing.** This log recorded 47 of 101 answers banked from an
+earlier attempt. Answers are cached under a key that includes the prompt, and the prompt had
+gained the short-quotation rule since those were recorded. Checked across the whole dataset
+with no model call, before anything was spent: **0 of 101 reusable**, for stage 3 as well.
+Both stages ran from nothing. The cache key is right — serving answers produced under a
+different prompt would be worse — but "resumes from cache" had become a claim about a bank
+that no longer existed.
+
+**Result.** 101 of 101 measured, no errors, 6 hours 21 minutes.
+
+| stage 4 | Recall | Citation precision | Answer hit rate | Excerpt validity | as written | Refusal accuracy |
+|---|---|---|---|---|---|---|
+| local `qwen2.5:3b` | 81.8% | 59.1% | 61.0% | 87.5% | 62.5% | **90.1%** |
+| hosted `gpt-oss-120b` | 81.8% | **72.9%** | **83.1%** | **91.3%** | 60.9% | 87.1% |
+
+Retrieval is identical — same index, same 81.8% recall — so the difference is what each model
+does with the same text. Direct lookups carry a correct citation 98% of the time against 76%.
+
+**The one number that moved the wrong way.** Scored as recorded, this run reported 11.2%
+fabrication: worse than its own stage 2 (3.9%) and worse than the local model at stage 4
+(6.2%), while every other metric improved. A metric moving against every other metric is a
+reason to read cases, not to publish. All 18 rejected quotations were read one at a time,
+split at their ellipses, and each piece located in the corpus:
+
+| Cause | Quotations |
+|---|---|
+| A piece that appears nowhere in the corpus — fabrication | 3 |
+| U+2011, a non-breaking hyphen, where the statute has `-` | 3 |
+| An elided piece ending on its own full stop | 1 |
+| The cited section's own words, in order, elided past the 20-character floor | 10 |
+| Real pieces reassembled into an order the statute does not use | 1 |
+
+Three were fabrications. The corpus contains no U+2010 or U+2011 at all, so a quotation
+carrying one could never match however faithful its words — the local model never types one,
+and `gpt-oss-120b` did in 6 of its 161. And every rejected elision was being counted as
+fabrication, because the check that asks which section a failed quotation really came from
+received the whole string with its ellipsis, which appears in no statute.
+
+**Decision.** Correct the scorer, not the number. U+2010/U+2011 fold to `-` on both sides;
+punctuation at the edge of an elided piece is ignored, with the length floor applied to the
+words that remain; and a rejected quotation is classified four ways — misattributed,
+fabricated, over-elided, recomposed — so a faithful elision cut too short, and a reordering of
+real text, are no longer called invented law. Both remain rejections. Recorded as an amendment
+to [ADR 0011](docs/adr/0011-what-counts-as-a-verbatim-quotation.md#amendment-2026-09-14-two-artifacts-and-what-a-failed-elision-is).
+
+Every run was re-scored from its stored answers, so only the measurement changed. Hosted stage
+4 falls from 11.2% to 1.9% fabrication and rises from 88.8% to 91.3% excerpt validity; hosted
+stage 2 moves 95.4% → 96.2% and 3.9% → 2.3%. **Both baselines stay at 0.0% valid and 100%
+fabricated** — the hosted baseline carries twenty non-breaking hyphens and not one of its
+quotations is rescued — and all four local runs do not move by a tenth of a point, having no
+non-ASCII hyphens and no rejected elisions between them. That is the evidence this is a
+correction rather than a loosened threshold.
+
+**What it cost.** About 2,500 tokens an answer; one sampled call spent 4,300, because the
+model reasons before it answers. The allowance refills on a rolling 24-hour window rather than
+resetting daily, so roughly 80 answers fit in a burst and the rest arrive at about three an
+hour.
+
+**Next step.** Stage 3 on the same model — the only remaining gap in the hosted track.
+
+### 2026-09-16 — Hosted stage 3, and what a second model makes visible
+
+**Objective.** Close the hosted track, and with four stages measured on each model, separate
+what is a property of the pipeline from what is a property of a model.
+
+**Result.** 101 of 101, no errors, 31 hours 14 minutes — nearly all of it waiting, because the
+run began the moment stage 4 had drained the allowance.
+
+| stage 3 | Recall | Citation precision | Answer hit rate | Excerpt validity | Fabricated | Refusal accuracy |
+|---|---|---|---|---|---|---|
+| local `qwen2.5:3b` | 80.5% | 66.3% | 63.6% | 83.9% | 10.8% | **88.1%** |
+| hosted `gpt-oss-120b` | 80.5% | **79.3%** | **80.5%** | **90.9%** | **0.6%** | 84.2% |
+
+Scored as recorded it reported 11.5% fabrication: its harness process had loaded the scorer
+before the correction two days earlier, so it was measured under the old rule and re-scored
+from its stored answers afterwards. One of its fifteen rejected quotations is invented;
+fourteen are the cited section's own words elided past the floor.
+
+**The stage 4 trade belongs to the pipeline, not to one model.** Adding the Penal Code and
+Schedule II costs citation precision on both tracks — 79.3% to 72.9% hosted, 66.3% to 59.1%
+local — because a thousand more chunks compete for the same eight retrieval slots. What it
+buys is the same on both: offence classification becomes answerable at all, and refusal
+accuracy rises (84.2% to 87.1% hosted, 88.1% to 90.1% local). Same direction, same shape, two
+models. One model could not have established that.
+
+**Misattribution belongs to the model, not to the chunking alone.** The local model quotes one
+section's words under another's at every retrieval stage — 18.6%, 5.4%, 6.2% — and the hosted
+model essentially never does: 0.8%, 0.0%, 0.0%. At stage 2 the naive windows that create the
+opportunity are identical between the tracks. Chunking creates the opportunity; taking it is
+the model's.
+
+**Over-elision is the hosted model's own way of quoting badly.** 8.5% of its stage 3
+quotations and 6.2% of its stage 4 ones are faithful elisions cut past the point of being
+evidence; the local model does not produce one in any of its four runs. Each model fails
+differently, and a checker calibrated on one of them will mis-score the other — which is what
+happened two days earlier.
+
+**By slice**, the gap is widest where a question needs more than one provision: multi-section
+questions carry a correct citation 92% of the time on the hosted model against 58% on the
+local one, Bangla questions 40% against 10%. The ambiguous slice is 0% on both. Neither model
+asks for the clarification those questions need, and that is now the clearest remaining
+weakness in the system — it is not a retrieval problem and more retrieval will not fix it.
+
+**A caveat this comparison carries.** Every earlier RAG run on both tracks was recorded before
+2026-09-12 18:19, when the prompt gained the rule asking for short quotations; these two used
+the current prompt. Retrieval and data are identical, so the hosted-against-local gaps above
+are the model and that rule together, not the model alone.
+
+**Decision.** The hosted track is complete. This closes the decision recorded on 2026-09-11,
+that stages 1 and 2 were the higher-quality track and would be finished when budget allowed.
+The two tracks stay in separate result directories and are never plotted on one line.
+
+**Next step.** A relevance floor, for the out-of-scope regression recorded on 2026-09-11; and
+act-aware ranking, for the stage 4 precision trade above. The ambiguous slice needs a
+clarification behaviour rather than better retrieval.
