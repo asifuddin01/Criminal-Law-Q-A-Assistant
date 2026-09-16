@@ -50,7 +50,7 @@ Everything the brief required, including all three optional inputs.
 | Answers grounded in retrieved text | Nothing is answered without retrieval; stage 1 exists to show the difference |
 | Section-level citations | With verbatim excerpts, each checked against the source before display |
 | Refuse when unsupported | A first-class outcome with its own metric — 90.1% refusal accuracy at stage 4 |
-| Evaluation | 101 questions, six runs, one scorer over all of them |
+| Evaluation | 101 questions, eight runs — four stages on each model — one scorer over all of them |
 | Documentation of approach | This file, [EXPERIMENTS.md](EXPERIMENTS.md), 12 [ADRs](docs/adr/), [AI_USAGE.md](AI_USAGE.md) |
 | *Optional:* image input | tesseract OCR, English + Bengali |
 | *Optional:* speech input | `whisper-large-v3`, English and Bangla |
