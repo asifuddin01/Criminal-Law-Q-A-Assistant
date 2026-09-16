@@ -14,12 +14,12 @@ flowchart LR
     subgraph ingest ["Ingestion — offline, re-runnable"]
         SRC["bdlaws.minlaw.gov.bd"] --> PARSE["Parse and assign roles"]
         PARSE --> CHUNK["Section-aware chunking"]
-        CHUNK --> IDX[("Index<br/>dense + lexical + structured")]
+        CHUNK --> IDX[("Index<br/>dense vectors<br/>+ schedule rows")]
     end
 
     subgraph query ["Query — online"]
         IN["Question<br/>text · speech · image"] --> NORM["Normalize to text<br/>ADR 0004"]
-        NORM --> RET["Hybrid retrieval<br/>role-filtered"]
+        NORM --> RET["Dense retrieval<br/>+ offence lookup"]
         RET --> GEN["Generate with<br/>grounded context"]
         GEN --> GATE{"Citation<br/>validation"}
         GATE -->|passes| ANS["Answer + citations<br/>+ amendment notes"]
@@ -49,7 +49,7 @@ flowchart TB
 
     PRINT --> SPLIT["Segment by section marker<br/>1 … 565, incl. 4A, 46B"]
     SPLIT --> BODY["Section text<br/>role: operative"]
-    SPLIT --> FN["599 footnotes"]
+    SPLIT --> FN["599 footnotes (CrPC)"]
 
     FN --> AREC["Amendment records<br/>operation · act · effective_from"]
 
@@ -59,11 +59,9 @@ flowchart TB
     AMEND --> AROLE["role: amending<br/>excluded from law retrieval"]
 
     BODY --> CH["Chunk within sections<br/>never across"]
-    CH --> EMB["Embed<br/>multilingual-e5"]
-    CH --> BM["Lexical index"]
+    CH --> EMB["Embed<br/>MiniLM, ONNX"]
 
     EMB --> IDX[("Index")]
-    BM --> IDX
     SROW --> IDX
     AROLE --> IDX
     AREC -.->|"attached to section"| IDX
@@ -95,10 +93,8 @@ flowchart TB
     CLS -->|yes| SLOOK["Schedule II lookup"]
     CLS -->|no| RET
 
-    RET["Dense retrieval<br/>exact cosine, in-process"] --> FILT["Role filter<br/>operative + schedule only"]
-    FILT --> CTX
+    RET["Dense retrieval<br/>exact cosine, in-process"] --> CTX["Grounded context"]
     SLOOK --> CTX
-    RR --> CTX["Grounded context"]
 
     CTX --> ENOUGH{"Sufficient<br/>support?"}
     ENOUGH -->|no| REFUSE["Refuse:<br/>state what is missing"]
@@ -119,6 +115,11 @@ footnote text, amending act and effective date, most recent first. Those records
 the footnote apparatus parsed at ingestion and are tied to their location in the text by
 footnote marker.
 
+Retrieval searches an index that holds only operative law and schedule rows, so there is no
+role filter in the query path: `build` refuses a non-operative act outright and the update
+path skips one and names it, which means an amending act's text is never in the index to be
+retrieved. The filter is a property of what was ingested, not a step at question time.
+
 All three validation checks are deterministic. None asks a model whether it was honest. The
 first resolves a citation against the document it names, because section numbers repeat
 across acts — Penal Code section 379 is theft, Code of Criminal Procedure section 379 is
@@ -129,11 +130,20 @@ returned. The third is a string containment test against stored source text.
 A failed quotation drops the quotation and keeps the citation: a fabricated excerpt is worse
 than none, while the section reference may still be sound. What "the section's own words"
 means is not quite a raw substring test, and the difference is worth stating precisely —
-bdlaws' amendment brackets are canonicalised away, an ellipsis is read as an elision, and a
-citation label the model copied in front of the text is trimmed off before the remainder is
-required to match. None of those admits a word the section does not contain, and the reasons
-are in [ADR 0011](adr/0011-what-counts-as-a-verbatim-quotation.md). Both the repaired and the
-strict rate are published for every stage.
+bdlaws' amendment brackets are canonicalised away, a non-breaking hyphen is read as the
+hyphen it renders as, an ellipsis is read as an elision with each piece checked in order and
+its edge punctuation ignored, and a citation label the model copied in front of the text is
+trimmed off before the remainder is required to match. None of those admits a word the
+section does not contain, and the reasons are in
+[ADR 0011](adr/0011-what-counts-as-a-verbatim-quotation.md). Both the repaired and the strict
+rate are published for every stage.
+
+A quotation that fails is reported as one of four things, because they call for different
+fixes: real text from another section (a chunking failure), text found in no section (the
+model writing law), the cited section's own words elided past the point of being evidence,
+and real pieces reassembled into an order the statute does not use. The last two are still
+rejected; they are not inventions, and counting them as such made a stronger model look
+worse than a weaker one.
 
 Refusal is a first-class outcome with its own accuracy metric, not an error path.
 
@@ -179,9 +189,10 @@ erDiagram
     SCHEDULE_ENTRY {
         string offence
         string penal_code_section
-        bool cognizable
-        bool bailable
-        bool compoundable
+        enum cognizable
+        enum bailable
+        enum compoundable
+        string warrant_or_summons
         string triable_by
         string punishment
     }
@@ -190,12 +201,19 @@ erDiagram
 `content_hash` on the section is what makes incremental update cheap: re-ingesting an act
 re-embeds only sections whose hash changed.
 
+The three classification columns are four-valued rather than boolean: `yes`, `no`, `depends`
+or `unknown`. Many rows read "according as the offence abetted is bailable or not", and the
+schedule genuinely declines to answer for them — recording that as `no` would turn an honest
+abstention into a wrong answer. A citation to Schedule II carries the whole row
+([ADR 0012](adr/0012-show-the-schedule-row-rather-than-a-chosen-line.md)), because the model
+quotes one line of a table and the line it picks can be about the wrong column.
+
 ## Technology choices
 
 | Layer | Choice | Reason |
 |---|---|---|
 | Backend | FastAPI, Python 3.12 | Async, typed, first-class OpenAPI. Alternatives examined in [ADR 0008](adr/0008-web-framework-choice.md) |
-| Frontend | Next.js | Straightforward deploy. Answers are **not** streamed, and cannot be: the citation gate has to see a complete answer before any of it is shown, or the interface would stream text and then retract a citation that failed validation |
+| Frontend | Next.js, exported to static files | The API process serves the page, so deployment is one process on one origin — the container and the Hugging Face Space both use it. Answers are **not** streamed, and cannot be: the citation gate has to see a complete answer before any of it is shown, or the interface would stream text and then retract a citation that failed validation |
 | Generation | Groq free tier, Ollama fallback | One key covers text, speech and vision; local path keeps the demo alive offline. [ADR 0003](adr/0003-llm-provider-strategy.md) |
 | Embeddings | multilingual MiniLM (ONNX) | Bangla questions against English text. [ADR 0010](adr/0010-embedding-model.md) |
 | Retrieval | Dense, plus structured offence lookup | Hybrid retrieval was the plan; the question it was for — "is theft bailable?" — is answered by looking the offence up in Schedule II by name, not by lexical overlap. See the progression note in [EXPERIMENTS.md](../EXPERIMENTS.md) |

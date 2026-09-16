@@ -8,6 +8,7 @@
     "start": "next start -p 3000",
     "lint": "next lint",
     "screenshots": "node scripts/capture-screenshots.mjs",
+    "screenshots:retry": "sh scripts/capture-with-retry.sh",
     "demo": "node scripts/record-demo.mjs"
   },
   "dependencies": {

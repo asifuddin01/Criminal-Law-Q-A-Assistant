@@ -176,20 +176,27 @@ an act is in scope if CrPC incorporates it by normative reference, or if it disp
 procedure. Each document carries a role per
 [ADR 0006](docs/adr/0006-document-roles-separate-operative-law-from-amending-instruments.md).
 
-| Document | Role | Source |
-|---|---|---|
-| Code of Criminal Procedure, 1898 | `operative` | `act-print-75.html` |
-| CrPC Schedule II | `schedule` | `upload/act/2026-05-05-11-47-47-Schedule-II.pdf` |
-| CrPC amending acts and ordinances | `amending` | Individual acts on bdlaws |
-| Penal Code, 1860 | `operative` | bdlaws |
-| Evidence Act, 1872 | `operative` | bdlaws |
-| Special Powers Act, 1974 | `operative` | bdlaws |
-| Nari-o-Shishu Nirjatan Daman Ain, 2000 | `operative` | bdlaws |
-| Cyber Security Act, 2023 | `operative` | bdlaws |
+| Document | Role | In the corpus today | Source |
+|---|---|---|---|
+| Code of Criminal Procedure, 1898 | `operative` | **yes** — 522 sections, 621 chunks | `act-print-75.html` |
+| CrPC Schedule II | `schedule` | **yes** — 376 offence rows | `upload/act/2026-05-05-11-47-47-Schedule-II.pdf` |
+| Penal Code, 1860 | `operative` | **yes** — 555 sections, 601 chunks | `act-print-11.html` |
+| CrPC amending acts and ordinances | `amending` | no — the role exists and is enforced, no amending act is ingested | Individual acts on bdlaws |
+| Evidence Act, 1872 | `operative` | no — in scope, not ingested | bdlaws |
+| Special Powers Act, 1974 | `operative` | no — in scope, not ingested | bdlaws |
+| Nari-o-Shishu Nirjatan Daman Ain, 2000 | `operative` | no — in scope, not ingested | bdlaws |
+| Cyber Security Act, 2023 | `operative` | no — in scope, not ingested | bdlaws |
+
+**What is actually indexed is the first three rows: 1,598 chunks.** The rest are in scope
+under the ADR 0007 criterion and are not there yet; the table says so rather than letting a
+scope list read as an inventory. The Evidence Act was attempted and is the reason the
+incremental path exists as a tested capability rather than a claim — see the entry in
+[EXPERIMENTS.md](EXPERIMENTS.md).
 
 Acts beyond CrPC are ingested one at a time, each demonstrating the incremental-update path
 and each followed by an evaluation run, so that an addition which degrades retrieval on core
-questions is detected rather than presumed harmless.
+questions is detected rather than presumed harmless. That is how the Penal Code arrived, and
+it is the path any of the rows above would follow.
 
 ## Retrieval and provenance policy
 

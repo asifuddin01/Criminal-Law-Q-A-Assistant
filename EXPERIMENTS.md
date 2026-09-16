@@ -147,7 +147,7 @@ while every other metric improved. Read one quotation at a time, 3 of stage 4's 
 stage 3's 19 were fabrications. The rest were a non-breaking hyphen the corpus never
 contains, an elided piece ending on its own full stop, and a classifier that counted every
 rejected elision as invented text. The correction and its effect on every run are in
-[ADR 0011's amendment](docs/adr/0011-what-counts-as-a-verbatim-quotation.md#amendment--2026-09-14-two-artifacts-and-what-a-failed-elision-is).
+[ADR 0011's amendment](docs/adr/0011-what-counts-as-a-verbatim-quotation.md#amendment-2026-09-14-two-artifacts-and-what-a-failed-elision-is).
 
 **Not quite like-for-like, and why.** Every earlier RAG run on both tracks was recorded
 before 2026-09-12 18:19, when the prompt gained the rule asking for short quotations. These

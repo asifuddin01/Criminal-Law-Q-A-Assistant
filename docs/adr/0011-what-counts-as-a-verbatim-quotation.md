@@ -112,7 +112,7 @@ Reporting two rates rather than one is the honest form of this decision. Anyone 
 disagrees with an allowance can read the stricter column, which is published beside the
 looser one for every stage.
 
-## Amendment — 2026-09-14: two artifacts, and what a failed elision is
+## Amendment, 2026-09-14: two artifacts, and what a failed elision is
 
 The hosted model's first complete stage 4 reported **11.2% fabrication** — worse than its
 own stage 2 (3.9%) and than the local model at stage 4 (6.2%), while every other metric

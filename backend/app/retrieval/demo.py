@@ -105,18 +105,34 @@ def main() -> int:
     )
 
     question = "Is theft a bailable offence?"
+    top = index.search(question, k=1)[0].chunk
     print(f'\n  "{question}"')
-    print(f"  dense retrieval alone returns: {index.search(question, k=1)[0].chunk.citation}")
+    print(f"  dense retrieval alone returns: {top.citation}")
     match = ScheduleLookup(entries).find(question)[0]
     print(
         f"  offence lookup returns:        Schedule II, Penal Code section "
         f"{match.entry.penal_code_section} — bailable: {match.entry.bailable.value}"
     )
-    print(
-        "  (dense retrieval lands on the sections about bail; the row that decides\n"
-        "   the question is found by looking the offence up by name — which is why\n"
-        "   both paths exist)"
+    # Say what happened, rather than asserting what usually happens. This line
+    # used to claim dense retrieval lands on the sections about bail, which was
+    # true of the run it was written against and stopped being true when chunking
+    # changed a few hours later — a narration outliving its own output.
+    row_chunk = next(
+        (c for c in rows if c.section_number == match.entry.penal_code_section), None
     )
+    if row_chunk is not None and top.chunk_id == row_chunk.chunk_id:
+        print(
+            "  (dense retrieval reached the row here too. It does not do so\n"
+            "   reliably — ranking moves with the corpus and the chunking, and the\n"
+            "   lookup is what makes the row certain rather than likely. The measured\n"
+            "   effect is in EXPERIMENTS.md, not in this line.)"
+        )
+    else:
+        print(
+            "  (dense retrieval landed elsewhere; the row that decides the question\n"
+            "   is found by looking the offence up by name — which is why both\n"
+            "   paths exist)"
+        )
 
     # --- 2. replacing a document with an amended consolidation ---------------
     _heading("2. Replacing a document: an amendment to section 61")

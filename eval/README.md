@@ -79,10 +79,11 @@ project's limitations rather than papered over with a number nobody has calibrat
 ```
 
 `requires_acts` records which acts would answer a question. Unanswerability is
-relative to the current corpus, not absolute: "is theft bailable?" is unanswerable
-today because Schedule II is not yet ingested, and it must flip to answerable when it
-is. Recording the dependency keeps these labels correct as the corpus grows, instead
-of silently rotting into wrong labels.
+relative to the current corpus, not absolute: "is theft bailable?" was unanswerable while
+Schedule II sat outside the corpus, and flipped to answerable when stage 4 brought it in.
+The label moved because the dependency was recorded, not because somebody remembered to
+revisit it — which is what keeps these labels correct as the corpus grows instead of
+silently rotting into wrong ones.
 
 ### Construction protocol
 
@@ -147,5 +148,21 @@ passes because it checks nothing is worse than none.
 
 ## Status
 
-Dataset built: **95 questions**, all labels validated against the parsed corpus.
-Metrics and harness follow.
+**101 questions**, every label validated against the parsed corpus:
+
+| Slice | Questions |
+|---|---|
+| Direct lookup | 45 |
+| Unanswerable | 15 |
+| Multi-section | 12 |
+| Amended provisions | 10 |
+| Bangla | 10 |
+| Ambiguous | 9 |
+
+24 of the 101 are questions the corpus should not answer — the unanswerable slice plus the
+ambiguous one, where the right behaviour is to ask what was meant rather than to pick a
+reading.
+
+The harness, the metrics and the re-scorer are built, and all four stages are measured on
+both models. Results: [EXPERIMENTS.md](../EXPERIMENTS.md) and
+[runs/charts/](runs/charts/).

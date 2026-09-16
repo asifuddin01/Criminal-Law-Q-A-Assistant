@@ -143,8 +143,9 @@ whole class of accident.
 
 The Space gets a single commit, not this project's history. It has no use for the
 screenshots and charts, and Hugging Face **rejects binary files that are not stored through
-LFS/Xet** — which every PNG ever committed here would be. The result is 78 files and 3.9 MB
-instead of 872 objects and 14.5 MB.
+LFS/Xet** — which every PNG ever committed here would be. The result is 71 files and 8.1 MB — the application, the corpus, the prebuilt index and
+the exported interface — instead of this repository's 157 tracked files and 44 MB of
+history. The index is 3.8 MB of that and the two source HTML documents 2.8 MB.
 
 One binary does ship: the index vectors, `data/index/legal_aware_schedule/vectors.npy`. The
 script tracks `*.npy` with git-lfs before committing, which is what Hugging Face requires.
@@ -174,7 +175,7 @@ discover it by using the demo.
 
 | Constraint | Consequence |
 |---|---|
-| Docker SDK requires a paid tier on this account | The Space runs under the `gradio` SDK, so the interface is Gradio's rather than the project's Next.js application. |
+| Docker SDK requires a paid tier on this account | The Space runs under the `gradio` SDK. Gradio's Blocks are built and launched because ZeroGPU counts them, but the interface served at the root is this project's own Next.js export; Gradio's page is the fallback if that export is ever missing. |
 | CPU-basic hardware requires a subscription | The Space runs on **ZeroGPU**, which refuses to start without a `@spaces.GPU` function — one is declared and never called, because there is no GPU work here. |
 | One shared free-tier token allowance | About **60 questions a day** across everyone using the link, at roughly 3,000 tokens each. When it is spent the app says so and recovers on its own; repeat questions are served from cache and cost nothing. |
 | No persistent storage | The local model is re-fetched on every cold start — **1.4 GB** of Ollama runtime plus **1.9 GB** of weights. |
@@ -201,22 +202,32 @@ cost nothing.
 **It sleeps when idle.** The first request after a quiet period waits for the container to
 wake.
 
-**There is no local-model fallback.** `qwen2.5:3b-instruct` needs Ollama and a machine to
-run it on; a free Space has neither. The fallback exists for local development, and the
-evaluation uses it as a second measurement track — it is not a redundancy for this
-deployment.
+**The local model is slow here, and optional.** `qwen2.5:3b-instruct` does run on the
+Space: `deploy/space/local_model.py` fetches Ollama and the weights on a background thread at
+every cold start, because a Space has no persistent storage. That is 3.3 GB before it can
+answer anything, and it then answers on two shared vCPUs in minutes rather than seconds. It
+is worth having when the hosted allowance is spent and is not a comfortable default; set
+`ENABLE_LOCAL_MODEL=0` in the Space's variables to skip it. Until it arrives, choosing it in
+the interface reports what it is doing rather than failing.
 
 ## Verified locally
 
-The Gradio entrypoint was run the way Spaces runs it before being documented as working:
+The entrypoint was run the way Spaces runs it — imported and launched, not executed as a
+script — before being documented as working:
 
-- `/`, `/api/meta`, `/gradio` and `/gradio/` all answer 200
+- `/` returns the exported Next.js page: it references `_next/static` and contains no
+  Gradio markup at all, which is the check that matters, since both pages carry the same
+  `<title>` and a looser test passes on either
+- `/_next/static/...` serves the page's stylesheet and chunks, and `/api/meta` answers with
+  the provider list and the input modalities
+- Gradio's own routes still answer — `/config` returns 200 — so the Blocks that ZeroGPU
+  counts are live even though their page is no longer the one served at the root
 - `POST /api/ask` reaches the model with no embedding-model download — the preloaded
   hub-layout cache is found, which is the whole point of `preload_from_hub`
 - the spent-quota path was exercised for real and returned the intended 503, naming what
   ran out and when it frees up, rather than a 502 with a provider stack trace
-- the Gradio fallback at `/gradio/` renders the disclaimer, accepts a question and runs the
-  same pipeline
+- with `web/` removed, the root falls back to Gradio's interface, which renders the
+  disclaimer and runs the same pipeline
 
 The container was separately built for `linux/amd64` and exercised the same way; see below.
 

@@ -2,30 +2,30 @@
 ========================================================================
 Baseline: an index of the Code of Criminal Procedure alone
 ========================================================================
-621 chunks embedded from scratch in 23.7s
+621 chunks embedded from scratch in 20.5s
 
 ========================================================================
 1. Adding a document: Schedule II
 ========================================================================
 Schedule II contributes 376 offence rows.
-376 added, 0 changed, 621 unchanged, 0 removed — embedded 376 of 997 chunks (62% reused) in 14.0s
+376 added, 0 changed, 621 unchanged, 0 removed — embedded 376 of 997 chunks (62% reused) in 14.9s
 The Code's 621 chunks kept the vectors they already had. A full rebuild would have re-embedded all 997.
 
   "Is theft a bailable offence?"
-  dense retrieval alone returns: section 497
+  dense retrieval alone returns: Schedule II, Penal Code section 379
   offence lookup returns:        Schedule II, Penal Code section 379 — bailable: no
-  (dense retrieval lands on the sections about bail; the row that decides
-   the question is found by looking the offence up by name — which is why
-   both paths exist)
+  (dense retrieval reached the row here too. It does not do so
+   reliably — ranking moves with the corpus and the chunking, and the
+   lookup is what makes the row certain rather than likely. The measured
+   effect is in EXPERIMENTS.md, not in this line.)
 
 ========================================================================
 2. Replacing a document: an amendment to section 61
 ========================================================================
 before:
-  Section 61. Person arrested not to be detained more than twenty-four hours
-61. No police-officer shall detain in custody a person arrested without war...
+  61. No police-officer shall detain in custody a person arrested without warrant for a longer period than under all the circumstances of the case is re...
 
-0 added, 1 changed, 996 unchanged, 0 removed — embedded 1 of 997 chunks (99.9% reused) in 0.0s
+0 added, 1 changed, 996 unchanged, 0 removed — embedded 1 of 997 chunks (99.9% reused) in 0.1s
 
 after:
   Section 61. Person arrested not to be detained more than forty-eight hours
@@ -44,7 +44,7 @@ section 61 restored: True
 Summary
 ========================================================================
 Adding a 376-row document and amending one section each cost only the
-embeddings they actually required. The full build of 621 chunks took 23.7s;
+embeddings they actually required. The full build of 621 chunks took 20.5s;
 the single-section amendment took under a second.
 
 Chunks are matched on a stable id and compared on a hash of their text, so
