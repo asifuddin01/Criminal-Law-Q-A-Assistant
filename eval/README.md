@@ -105,8 +105,12 @@ The dataset is stratified so that per-slice results are meaningful, not just the
   the system cites current law.
 - **Unanswerable** — plausible criminal-law questions the corpus genuinely does not answer.
   The correct behaviour is refusal.
-- **Ambiguous** — questions admitting several readings, where the correct behaviour is to
-  ask for clarification or answer under a stated interpretation.
+- **Ambiguous** — questions admitting several readings — *"Can I get bail?"* names no
+  offence. The correct behaviour is to ask what was meant rather than pick a reading, and that
+  is what is scored: a clarifying question is recorded as declining to answer, and declining
+  earns the point. Answering under a stated interpretation is defensible and is **not**
+  credited, because no deterministic check can tell a stated interpretation from a silent
+  guess — and the silent guess is the failure this slice exists to catch.
 - **Bangla** — questions posed in Bangla against the English corpus, per the cross-lingual
   requirement.
 
