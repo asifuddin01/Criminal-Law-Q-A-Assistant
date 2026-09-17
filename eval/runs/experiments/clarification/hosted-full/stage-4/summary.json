@@ -1,0 +1,87 @@
+{
+  "questions": 101,
+  "measured": 101,
+  "errors": 0,
+  "citations_made": 164,
+  "citation_existence": 1.0,
+  "hallucinated_citation_rate": 0.0,
+  "citation_precision": 0.775,
+  "answer_hit_rate": 0.8312,
+  "retrieval_recall": 0.8182,
+  "excerpt_validity": 0.8841,
+  "excerpt_validity_unrepaired": 0.6585,
+  "misattribution_rate": 0.0,
+  "fabrication_rate": 0.0244,
+  "overelision_rate": 0.0915,
+  "recomposition_rate": 0.0,
+  "quotes_checked": 164,
+  "quotes_repaired": 37,
+  "quotes_misattributed": 0,
+  "quotes_fabricated": 4,
+  "quotes_overelided": 15,
+  "quotes_recomposed": 0,
+  "refusal_accuracy": 0.9307,
+  "refused_when_unanswerable": 0.875,
+  "refused_when_answerable": 0.0519,
+  "by_slice": {
+    "direct_lookup": {
+      "n": 45,
+      "errors": 0,
+      "decided_correctly": 45,
+      "with_correct_citation": 44,
+      "measured": 45,
+      "refusal_accuracy": 1.0
+    },
+    "multi_section": {
+      "n": 12,
+      "errors": 0,
+      "decided_correctly": 12,
+      "with_correct_citation": 10,
+      "measured": 12,
+      "refusal_accuracy": 1.0
+    },
+    "amended": {
+      "n": 10,
+      "errors": 0,
+      "decided_correctly": 10,
+      "with_correct_citation": 8,
+      "measured": 10,
+      "refusal_accuracy": 1.0
+    },
+    "unanswerable": {
+      "n": 15,
+      "errors": 0,
+      "decided_correctly": 15,
+      "with_correct_citation": 0,
+      "measured": 15,
+      "refusal_accuracy": 1.0
+    },
+    "ambiguous": {
+      "n": 9,
+      "errors": 0,
+      "decided_correctly": 6,
+      "with_correct_citation": 0,
+      "measured": 9,
+      "refusal_accuracy": 0.6667
+    },
+    "bangla": {
+      "n": 10,
+      "errors": 0,
+      "decided_correctly": 6,
+      "with_correct_citation": 2,
+      "measured": 10,
+      "refusal_accuracy": 0.6
+    }
+  },
+  "stage": 4,
+  "system": "rag-full-corpus",
+  "provider": "groq",
+  "model": "openai/gpt-oss-120b",
+  "elapsed_seconds": 18302.9,
+  "cache_hits": 100,
+  "dataset_questions": 101,
+  "partial": false,
+  "slices": null,
+  "experiment": "clarification/hosted-full",
+  "clarify": true
+}

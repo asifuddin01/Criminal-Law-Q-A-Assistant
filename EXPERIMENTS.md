@@ -1097,3 +1097,56 @@ refused and 83.1% answer hit rate, on the questions measured in both:
 effect been observed: 6 of 9. The open question is H2 on the 57 answerable questions the probe
 did not cover — multi-section, amended, Bangla and the remaining direct lookups — which is
 exactly where the local model broke.
+
+**Result.** 101 of 101 measured, no errors, 5 hours 6 minutes — the probe's 29 answers came
+from cache, and the rest ran into the rolling allowance near the end.
+
+| Registered criterion | Committed stage 4 | With the rule | Required | |
+|---|---|---|---|---|
+| H1 — ambiguous questions declined | 1 of 9 | **6 of 9** | at least 4 | pass |
+| H2 — answerable questions refused | 4 of 77 | 4 of 77 | at most 8 | pass |
+| H2 — answer hit rate | 83.1% | 83.1% | at least 80.1% | pass |
+
+Around the criteria: citation precision rose from 72.9% to 77.5%; unanswerable questions
+declined went from 14 to 15 of 15, taking refusal accuracy from 87.1% to 93.1%; excerpt
+validity fell from 91.3% to 88.4%, the fall made of over-elided quotations (6.2% to 9.2%) —
+the hosted model's own habit — rather than fabrication (1.9% to 2.4%).
+
+**Verdict: adopted, for the hosted model only.** All three registered criteria hold.
+`CLARIFYING_PROVIDERS` is `{"groq"}`, and the local model keeps the prompt it had, on the
+evidence of the first run.
+
+**Failure cases — what the criteria cannot see.** Only two answerable questions changed
+decision, one each way, and neither change is a success.
+
+*The Bangla bail question is now answered, and answered wrongly.* Asked whether bail is
+mandatory for a bailable offence — gold label section 496 — the hosted model used to decline,
+itself a false refusal. With the rule it answers **"No. For offences listed as bailable, the
+law does not make granting bail automatic"**, citing a Schedule II row. Section 496 says the
+opposite: a person accused of a bailable offence who is prepared to give bail *shall* be
+released on it. The answer carries no correct citation, so the hit rate does not move, and
+nothing in the scorer can tell a wrong "No" from a right "Yes".
+
+*The same question in English kept its citation and lost its directness.* It used to open
+*"Yes… must be released on bail"*; it now opens *"The Code does not require automatic release
+of a person accused of a bailable offence"*, before stating the condition correctly. Still
+cited to section 496, still counted as a hit — and a lay reader could take the first sentence
+as "No". Beside the Bangla answer this looks like a direction rather than noise: a rule telling
+the model not to pick a reading for the user appears to push yes-or-no answers toward the
+conditional and the negative.
+
+*A Bangla question on how information is recorded at a police station* — section 154 — is now
+declined with a generic request for more detail, where it was previously answered from the
+wrong section, 45. A false refusal replaced a misattributed answer.
+
+**Why adopt anyway.** The criteria were fixed before the run and they pass; rejecting on a
+failure found afterwards would be the same post-hoc move made in the other direction. On
+substance the trade also favours the rule. Five ambiguous questions that were answered from
+whatever offence retrieval returned — among them *"Can I get bail?"*, answered "No" — now get a
+question back, against one wrong answer introduced on a question the model was already
+refusing. It is recorded as a trade, not a clean win.
+
+**Next step.** Measure the failure the metrics cannot see: whether a yes-or-no answer points
+the same way as the provision it cites, starting with the bail questions, where a wrong "No" is
+the costliest error this system can make. The local model stays without the rule until there
+is a stronger local model to test it on.
