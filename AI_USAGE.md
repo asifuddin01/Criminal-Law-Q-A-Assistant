@@ -24,6 +24,11 @@ git log --format='%h %s' --grep='Co-Authored-By: Claude'
 
 ## What was delegated
 
+Nearly all of the implementation, in every part of the system. The Git history records it
+commit by commit: of the scoped commits, the most are deployment (16), evaluation (9), and
+question answering and the citation gate (7), followed by retrieval, ingestion, the Space,
+the frontend, the provider layer and the API.
+
 **Source investigation.** Inspecting `bdlaws.minlaw.gov.bd` to establish how Bangladesh
 legislation is published — URL structure, section boundaries, hierarchy markers, and how
 amendments are represented. Findings in [DATA_SOURCE.md](DATA_SOURCE.md).
@@ -31,9 +36,35 @@ amendments are represented. Findings in [DATA_SOURCE.md](DATA_SOURCE.md).
 **Architecture decisions.** Drafting the ADRs in [docs/adr/](docs/adr/). The decisions were
 reviewed and accepted individually; one was subsequently reversed (see below).
 
-**Implementation.** Backend scaffolding, the provider abstraction, tests.
+**Ingestion.** The print-view parser that reassembles an act into sections with its part,
+chapter and marginal notes; footnote parsing into amendment records; Schedule II extraction
+from a 161-page PDF into structured rows; document roles.
 
-**Documentation.** This file, the README, the experiment log structure.
+**Retrieval.** Legal-aware and naive chunking, embeddings, the exact in-process index, the
+Schedule II offence lookup, and incremental update with its demonstration.
+
+**Answering and validation.** The provider abstraction over Groq and Ollama, the prompt, and
+the citation gate — including the definition of a verbatim quotation, which was corrected
+twice as real quotations exposed it (ADR 0011 and its amendment).
+
+**Evaluation.** The gold dataset's construction, the harness, the metrics, the re-scorer and
+the charts. Every gold label was checked against fetched statutory text rather than accepted
+from the model, and the harness validates the labels before any run.
+
+**Interfaces.** The Next.js application with text, speech, image and document input and the
+model toggle; the Gradio fallback.
+
+**Deployment.** The Dockerfile, the Hugging Face Space entrypoint and push script, and running
+Ollama inside the Space.
+
+**Media and documentation.** The Playwright scripts that generate the screenshots and both
+demo recordings, and this file, the README, the experiment log and the architecture document.
+
+**What stayed with the author.** Direction and priorities; every choice between options
+presented, including the deployment platform and what to cut; accepting or rejecting each
+change; and anything involving credentials. The API key was entered by the author in the
+Space's own secrets page, and the assistant was not permitted to write or repair files that
+hold credentials — it diagnosed their shape and handed back a command to run instead.
 
 ## Review process
 
@@ -405,3 +436,45 @@ typing habits. The allowances were right for the text they were written against,
 first run on a different model is where they get tested, not where they get trusted. The
 cue was a metric that moved against every other metric; that shape is worth reading one
 case at a time before it is written down anywhere.
+
+### 14. Documentation that described a different system, and an alarm that was a test error
+
+**What happened.** A final audit checked every document against the code it describes, rather
+than re-reading the prose, and found the failure recorded in entry 12 had happened again —
+in documents written or last edited with AI assistance:
+
+- the architecture document drew hybrid retrieval and a lexical index that were never built,
+  named an embedding model ADR 0010 had rejected, contained a diagram node nothing defined, and
+  placed a role filter at query time that only exists at ingestion;
+- the README's setup commands built an index the application does not load and fetched one
+  act of the three it needs, so following them produced an application that would not start;
+- DATA_SOURCE.md listed four acts as corpus members that were never ingested;
+- DEPLOY.md described the Space as serving Gradio's interface and as having no local model,
+  after both had changed;
+- the experiment log stopped three days before its last three experiments, whose results had
+  gone into a status section instead of the dated record.
+
+The same audit produced a false alarm of its own. Stored index vectors did not match freshly
+embedded text, and I reported that as a stale index that would invalidate every retrieval
+number. It was a test error: the index embeds a chunk's heading and text together, and the
+check embedded the text alone.
+
+**How it was caught.** The documentation defects by grepping each claim and then the source for
+its implementation, re-measuring every number instead of re-reading it, running each setup
+command against what the application actually loads, and checking every diagram node and link
+mechanically. The false alarm by testing its consequence rather than its symptom: all 101
+stage 4 questions were re-retrieved live, and every one reproduced its recorded retrieval
+exactly.
+
+**Correction.** Every document corrected against measured values, a missing incremental-update
+row re-attributed to the run that produced it, and the two missing experiment entries appended
+— not written into the older ones. The alarm was withdrawn in the same message that explained
+it.
+
+**Lesson recorded.** Entry 12's check — grep the docs for each capability, then the source for
+it — works, and it has to be run again rather than remembered as done. Documentation drifts
+every time the system changes under it, and an assistant edits documents locally: a row, a
+paragraph, a diagram node, each correct when written. The second lesson is about alarms. A
+result that would invalidate everything deserves the fastest route to its consequence, and
+here that was one command, which should have run before the alarm was raised rather than
+after.
