@@ -266,11 +266,11 @@ async def ask(request: AskRequest, http_request: Request) -> AskResponse:
 
     response = AskResponse(
         question_text=request.question,
-        answer=(
-            answer.text
-            if not result.refused
-            else (answer.text or result.reason)
-        ),
+        # A refusal carries its reason, never the text that was refused. When the
+        # gate withholds an answer, `answer.text` is the unverified answer itself,
+        # and returning it here emitted exactly what the gate exists to stop —
+        # hidden by both interfaces, delivered to any other client of the API.
+        answer=answer.text if not result.refused else result.reason,
         refused=result.refused,
         reason=result.reason,
         citations=[

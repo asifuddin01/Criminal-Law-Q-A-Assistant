@@ -164,7 +164,12 @@ def validate(
     acts = corpora if isinstance(corpora, dict) else {CRPC: corpora}
     result = ValidationResult(refused=answer.refused)
     if answer.refused:
-        result.reason = "the model declined to answer"
+        # The model's own words are the reason, and the reader needs them. Asked
+        # something it cannot answer, the model says what is missing — or, for an
+        # ambiguous question, asks which offence or proceeding is meant. Replacing
+        # that with a fixed "the model declined to answer" threw away the one
+        # sentence that tells a reader what to do next, in both interfaces.
+        result.reason = answer.text.strip() or "the model declined to answer"
         return result
 
     allowed = set(retrieved_sections or answer.retrieved_sections)

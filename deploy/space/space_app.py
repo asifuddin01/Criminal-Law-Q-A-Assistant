@@ -82,8 +82,8 @@ from starlette.routing import Mount, Route  # noqa: E402
 
 from app.api.routes import router as api_router  # noqa: E402
 from app.legal import DISCLAIMER  # noqa: E402
-from app.qa.validation import validate  # noqa: E402
 from app.qa.failures import explain  # noqa: E402
+from app.qa.validation import validate  # noqa: E402
 from app.services import (  # noqa: E402
     describe_local_model,
     get_corpora,
@@ -92,7 +92,6 @@ from app.services import (  # noqa: E402
     local_provider_reachable,
     warm,
 )
-
 
 if spaces is not None:
 
@@ -214,7 +213,8 @@ async def answer_question(question: str, provider_label: str | None = None) -> s
 
     result = validate(answer, get_corpora(), schedule=get_schedule())
     if result.refused:
-        return f"**Withheld.** {result.reason or answer.text}"
+        # The reason, never the refused text: see the same line in app/api/routes.py.
+        return f"**No answer given.** {result.reason}"
 
     lines = [answer.text, "", "---", ""]
     lines.extend(_render_citations(result.citations))
