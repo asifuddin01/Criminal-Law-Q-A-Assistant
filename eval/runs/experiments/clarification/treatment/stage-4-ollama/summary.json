@@ -1,0 +1,86 @@
+{
+  "questions": 101,
+  "measured": 100,
+  "errors": 1,
+  "citations_made": 105,
+  "citation_existence": 1.0,
+  "hallucinated_citation_rate": 0.0,
+  "citation_precision": 0.5806,
+  "answer_hit_rate": 0.6184,
+  "retrieval_recall": 0.8158,
+  "excerpt_validity": 0.866,
+  "excerpt_validity_unrepaired": 0.6495,
+  "misattribution_rate": 0.0722,
+  "fabrication_rate": 0.0619,
+  "overelision_rate": 0.0,
+  "recomposition_rate": 0.0,
+  "quotes_checked": 97,
+  "quotes_repaired": 21,
+  "quotes_misattributed": 7,
+  "quotes_fabricated": 6,
+  "quotes_overelided": 0,
+  "quotes_recomposed": 0,
+  "refusal_accuracy": 0.89,
+  "refused_when_unanswerable": 0.7917,
+  "refused_when_answerable": 0.0789,
+  "by_slice": {
+    "direct_lookup": {
+      "n": 45,
+      "errors": 0,
+      "decided_correctly": 43,
+      "with_correct_citation": 34,
+      "measured": 45,
+      "refusal_accuracy": 0.9556
+    },
+    "multi_section": {
+      "n": 12,
+      "errors": 1,
+      "decided_correctly": 10,
+      "with_correct_citation": 6,
+      "measured": 11,
+      "refusal_accuracy": 0.9091
+    },
+    "amended": {
+      "n": 10,
+      "errors": 0,
+      "decided_correctly": 10,
+      "with_correct_citation": 5,
+      "measured": 10,
+      "refusal_accuracy": 1.0
+    },
+    "unanswerable": {
+      "n": 15,
+      "errors": 0,
+      "decided_correctly": 15,
+      "with_correct_citation": 0,
+      "measured": 15,
+      "refusal_accuracy": 1.0
+    },
+    "ambiguous": {
+      "n": 9,
+      "errors": 0,
+      "decided_correctly": 4,
+      "with_correct_citation": 0,
+      "measured": 9,
+      "refusal_accuracy": 0.4444
+    },
+    "bangla": {
+      "n": 10,
+      "errors": 0,
+      "decided_correctly": 7,
+      "with_correct_citation": 2,
+      "measured": 10,
+      "refusal_accuracy": 0.7
+    }
+  },
+  "stage": 4,
+  "system": "rag-full-corpus",
+  "provider": "ollama",
+  "model": "qwen2.5:3b-instruct",
+  "elapsed_seconds": 2017.8,
+  "cache_hits": 0,
+  "dataset_questions": 101,
+  "partial": false,
+  "slices": null,
+  "experiment": "clarification/treatment"
+}

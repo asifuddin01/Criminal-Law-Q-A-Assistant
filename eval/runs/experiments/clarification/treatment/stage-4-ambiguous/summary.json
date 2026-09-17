@@ -1,0 +1,48 @@
+{
+  "questions": 9,
+  "measured": 9,
+  "errors": 0,
+  "citations_made": 4,
+  "citation_existence": 1.0,
+  "hallucinated_citation_rate": 0.0,
+  "citation_precision": null,
+  "answer_hit_rate": null,
+  "retrieval_recall": null,
+  "excerpt_validity": 0.75,
+  "excerpt_validity_unrepaired": 0.75,
+  "misattribution_rate": 0.0,
+  "fabrication_rate": 0.0,
+  "overelision_rate": 0.25,
+  "recomposition_rate": 0.0,
+  "quotes_checked": 4,
+  "quotes_repaired": 0,
+  "quotes_misattributed": 0,
+  "quotes_fabricated": 0,
+  "quotes_overelided": 1,
+  "quotes_recomposed": 0,
+  "refusal_accuracy": 0.6667,
+  "refused_when_unanswerable": 0.6667,
+  "refused_when_answerable": null,
+  "by_slice": {
+    "ambiguous": {
+      "n": 9,
+      "errors": 0,
+      "decided_correctly": 6,
+      "with_correct_citation": 0,
+      "measured": 9,
+      "refusal_accuracy": 0.6667
+    }
+  },
+  "stage": 4,
+  "system": "rag-full-corpus",
+  "provider": "groq",
+  "model": "openai/gpt-oss-120b",
+  "elapsed_seconds": 138.8,
+  "cache_hits": 0,
+  "dataset_questions": 101,
+  "partial": true,
+  "slices": [
+    "ambiguous"
+  ],
+  "experiment": "clarification/treatment"
+}

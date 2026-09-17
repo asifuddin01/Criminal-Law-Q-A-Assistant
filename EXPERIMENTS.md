@@ -1017,3 +1017,83 @@ direction, not a calibrated rate. Whatever the aggregate says, the *"Can I get b
 is read by hand.
 
 *Results are appended below once the runs complete.*
+
+**Result.** Control and treatment on the local model, compared on the 98 questions measured
+in both runs. The control lost two Bangla questions and the treatment one multi-section
+question, each to the local model exhausting its 6,000-token answer budget.
+
+| Pre-registered criterion | Control | Treatment | Change | Required | |
+|---|---|---|---|---|---|
+| H1 — ambiguous questions declined | 1 of 9 | 4 of 9 | +3 | at least +3 | pass |
+| H2 — answerable questions refused | 0 of 74 | 6 of 74 | **+6** | at most +4 | **fail** |
+| H2 — answer hit rate | 70.3% | 63.5% | **−6.8 pts** | no more than −3 | **fail** |
+
+The hosted probe — the treatment prompt on `gpt-oss-120b`, against the committed hosted stage
+4 answers for the same questions:
+
+| | Committed stage 4 | Treatment |
+|---|---|---|
+| Ambiguous questions declined | 1 of 9 | **6 of 9** |
+| First 20 direct lookups declined | 0 | 0 |
+| … carrying a correct citation | 20 | 20 |
+
+**Verdict: not adopted.** H2 fails on the local model on both of its measures, and the
+criteria committed before the runs require H1 and H2 to hold there. The rule is reverted.
+
+**What the counts do not show.** The same sentence produced two different behaviours.
+
+*The hosted model asked.* "Can I get bail?" now receives *"To determine whether you can be
+granted bail, I need to know the specific offence you are charged with"*, where it used to
+receive "No". "What is the time limit?" receives *"Your question is unclear because several
+time limits are mentioned in the provided extracts"*, followed by the two it found. That is
+what the rule describes.
+
+*The local model refused.* Its three new ambiguous declines are not questions at all — *"The
+given extracts do not provide information about whether an offence is cognizable."* H1 passed
+on the metric and missed its point: the model learned to decline, not to ask. And it declined
+questions the extracts plainly answer. *"Must a person accused of a bailable offence be
+released on bail?"* is section 496, and the reply was that the extracts *"do not contain
+information"* about it. Three Bangla questions were declined for reasons belonging to some
+other question: asked who may search a woman — section 52 — it declined because the extracts
+*"do not provide information about the offense of female infanticide"*.
+
+That last failure reaches past this experiment. Since today's refusal-text fix, a refusal shows
+the model's own reason. On the hosted model that reason is the clarifying question this
+experiment wanted. On the local model it can be a misreading nobody checked. It stays, because
+hiding the hosted model's questions to avoid showing the local model's mistakes is the worse
+trade, and it is stated among the README's limitations.
+
+**A side result.** The control is the first local stage 4 run on the current prompt: 70.7%
+answer hit rate and 66.7% citation precision, against 61.0% and 59.1% for the committed run of
+2026-09-12. The short-quotation rule, truncation handling and a larger answer budget all changed
+between those runs, so the gain is recorded and not attributed.
+
+**Decision.** Not adopted as a rule for every model. The evidence points where the hypothesis
+did not: an instruction a strong model applies with judgement, a 3B model applies
+indiscriminately. That is a new hypothesis, not a finding, and it is registered below before it
+is tested.
+
+#### Follow-up — the rule on the hosted model only
+
+**Hypothesis — registered after the result above, before this run.** Applied to
+`gpt-oss-120b` alone, the rule raises ambiguous declines without raising refusals of answerable
+questions, across the whole dataset rather than the 29-question probe.
+
+**Configuration.** Hosted stage 4, all 101 questions, with the rule —
+`--stage 4 --provider groq --clarify --experiment clarification/hosted-full`. The prompt is
+byte-identical to the probe's, so the probe's 29 answers come from cache and 72 are new. The
+comparison is the committed hosted stage 4 run, which differs only in the rule. The local model
+keeps the current prompt. In code the rule is now applied per provider, and the set of providers
+that get it is **empty** until this run decides otherwise.
+
+**Pass criteria**, against the committed run's 1 of 9 ambiguous declined, 4 of 77 answerable
+refused and 83.1% answer hit rate, on the questions measured in both:
+
+- **H1.** At least 4 of 9 ambiguous questions declined.
+- **H2.** At most 8 answerable questions refused, and an answer hit rate of at least 80.1%.
+- **Adopt for the hosted model only** if both hold.
+
+**What is already known.** The ambiguous slice is among the 29 cached answers, so H1 has in
+effect been observed: 6 of 9. The open question is H2 on the 57 answerable questions the probe
+did not cover — multi-section, amended, Bangla and the remaining direct lookups — which is
+exactly where the local model broke.
