@@ -49,7 +49,7 @@ Everything the brief required, including all three optional inputs.
 | Q&A over a Bangladeshi legal corpus | CrPC 1898, its Schedule II, and the Penal Code 1860 |
 | Answers grounded in retrieved text | Nothing is answered without retrieval; stage 1 exists to show the difference |
 | Section-level citations | With verbatim excerpts, each checked against the source before display |
-| Refuse when unsupported | A first-class outcome with its own metric — 90.1% refusal accuracy at stage 4 |
+| Handle ambiguous and unsupported questions | Unsupported: declined 14 of 15 at stage 4 on the hosted model. **Ambiguous: weak by default** — see [Limitations](#limitations) |
 | Evaluation | 101 questions, eight runs — four stages on each model — one scorer over all of them |
 | Documentation of approach | This file, [EXPERIMENTS.md](EXPERIMENTS.md), 12 [ADRs](docs/adr/), [AI_USAGE.md](AI_USAGE.md) |
 | *Optional:* image input | tesseract OCR, English + Bengali |
@@ -454,6 +454,25 @@ weakness (quotations elided past the point of being evidence) are in
 ## Limitations
 
 Stated now rather than discovered later.
+
+**Ambiguous questions are handled badly by default.** A question that does not say which
+offence or proceeding it means — *"Can I get bail?"* — should be answered with a question. By
+default it is answered from whichever offence retrieval happened to return: the hosted model
+told a reader **"No"**, on the strength of aiding a prisoner's escape, an offence they never
+mentioned. At stage 4 the hosted model declines 1 of 9 such questions, and the local model on the current
+prompt also 1 of 9. A rule
+telling the model to ask instead was tested against criteria committed before the runs (see the
+2026-09-17 entry in [EXPERIMENTS.md](EXPERIMENTS.md)). On the hosted model it worked — 6 of 9,
+with real clarifying questions and no new refusals among 20 direct lookups. On the local model
+it failed, becoming refusals of questions the corpus plainly answers. So it is applied per
+model, and to none until a full-dataset run on the hosted model confirms it does not make that
+model decline answerable questions.
+
+**A refusal shows the model's own reason, and that reason is not checked.** When the model
+declines, the reader sees why in its words — on the hosted model, usually the question they
+need to answer. On the local model it is sometimes a misreading: asked in Bangla who may search
+a woman, it declined because the extracts do not cover female infanticide. Citations and
+quotations are verified against the statute; a refusal's explanation is not.
 
 **No point-in-time reconstruction.** The system reports when a provision changed, under
 which act and from what date, and links the amending act — but it does not reconstruct the
