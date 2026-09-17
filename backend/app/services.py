@@ -113,12 +113,16 @@ def get_qa(provider: str | None = None) -> RetrievalQA:
     is what a spent hosted allowance leaves you. It is cached per provider, so
     switching back and forth does not rebuild the index.
     """
+    from app.qa.rag import clarifies
+
+    chosen = get_provider(provider)
     return RetrievalQA(
-        get_provider(provider),
+        chosen,
         get_index(),
         name="rag-legal-chunks",
         k=get_settings().retrieval_k,
         lookup=get_lookup(),
+        clarify=clarifies(chosen.name),
     )
 
 

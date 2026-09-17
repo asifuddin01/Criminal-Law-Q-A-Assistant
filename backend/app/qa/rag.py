@@ -72,6 +72,41 @@ Set "refused" to true when the extracts do not support an answer, leave "citatio
 empty, and put your reason in "answer"."""
 
 
+# The rule SYSTEM_PROMPT carries for vague questions, and the rule tested against it.
+#
+# On 2026-09-17 the second replaced the first for every model, against criteria
+# committed before either run (EXPERIMENTS.md, "Asking instead of guessing"). It
+# failed them on the local model: the 3B model turned "ask what was meant" into
+# declining questions the extracts plainly answer. On the hosted model it did what it
+# says. So it is applied per provider, and only where it has been measured to help.
+VAGUE_QUESTION_RULE = """\
+- If the question is too vague to answer without knowing which offence or proceeding \
+is meant, say what you would need to know instead of guessing."""
+
+CLARIFICATION_RULE = """\
+- If the question does not say which offence, proceeding, court or stage it is about, \
+do not pick one for the user. Set "refused" to true and use "answer" to ask what you \
+would need to know, naming the possibilities the extracts show. Extracts are retrieved \
+for every question, so an offence or section appearing in them is never evidence of \
+which one the user meant: asked "will the police charge me?", answering from whatever \
+offence the extracts mention is a guess presented as law."""
+
+# Replaced, not appended: the two rules give conflicting instructions, and this is
+# byte-for-byte the prompt the experiment measured, so its cached answers still match.
+CLARIFYING_PROMPT = SYSTEM_PROMPT.replace(VAGUE_QUESTION_RULE, CLARIFICATION_RULE)
+if CLARIFYING_PROMPT == SYSTEM_PROMPT:
+    raise RuntimeError("the vague-question rule was not found in SYSTEM_PROMPT")
+
+# Providers that get the clarification rule. Empty until a full-dataset run shows it
+# helps without making that provider decline answerable questions.
+CLARIFYING_PROVIDERS: frozenset[str] = frozenset()
+
+
+def clarifies(provider_name: str) -> bool:
+    """Whether the shipped system applies the clarification rule for this provider."""
+    return provider_name in CLARIFYING_PROVIDERS
+
+
 def _format_context(chunks) -> str:
     """Render the extracts.
 
@@ -103,12 +138,15 @@ class RetrievalQA:
         name: str,
         k: int = 8,
         lookup: ScheduleLookup | None = None,
+        clarify: bool = False,
     ) -> None:
         self._provider = provider
         self._index = index
         self._k = k
         self._lookup = lookup
         self.name = name
+        self.clarify = clarify
+        self._system_prompt = CLARIFYING_PROMPT if clarify else SYSTEM_PROMPT
 
     @property
     def model_name(self) -> str:
@@ -143,7 +181,7 @@ class RetrievalQA:
         path exists to do, would have served every answer from the corpus before it.
         """
         payload = (
-            f"{SYSTEM_PROMPT}\x00{self._index.model_name}"
+            f"{self._system_prompt}\x00{self._index.model_name}"
             f"\x00{self._index.content_fingerprint}\x00k={self._k}"
         )
         return hashlib.sha256(payload.encode("utf-8")).hexdigest()[:12]
@@ -179,7 +217,7 @@ class RetrievalQA:
             )
 
         messages = [
-            ChatMessage(role="system", content=SYSTEM_PROMPT),
+            ChatMessage(role="system", content=self._system_prompt),
             ChatMessage(
                 role="user",
                 content=(

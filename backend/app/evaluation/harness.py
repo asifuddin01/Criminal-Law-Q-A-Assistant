@@ -28,6 +28,7 @@ from app.ingest import cache_path, parse_act, parse_schedule, schedule_path
 from app.llm import get_provider
 from app.llm.rate_limit import is_daily_limit, retry_delay
 from app.qa import Answer, BaselineLLM, Citation, RetrievalQA
+from app.qa.rag import clarifies
 from app.retrieval import ScheduleLookup, VectorIndex
 from app.retrieval.chunking import ACT_DOCUMENTS, document_for
 
@@ -224,6 +225,7 @@ async def run_stage(
     wait_for_budget: bool = False,
     slices: list[str] | None = None,
     experiment: str | None = None,
+    clarify: bool = False,
 ) -> int:
     if stage not in STAGES:
         print(f"stage {stage} is not implemented; available: {sorted(STAGES)}")
@@ -288,7 +290,15 @@ async def run_stage(
             lookup = ScheduleLookup(entries)
             print(f"offence lookup: {len(lookup.entries)} Schedule II rows")
 
-        system = RetrievalQA(provider, index, name=name, lookup=lookup)
+        # The same per-provider choice the application makes, so a stage measures
+        # what ships; --clarify forces the rule on, for an experiment.
+        system = RetrievalQA(
+            provider,
+            index,
+            name=name,
+            lookup=lookup,
+            clarify=clarify or clarifies(provider.name),
+        )
 
     model = getattr(provider, "_chat_model", "unknown")
     print(f"stage {stage}: {name} — {description}")
@@ -348,6 +358,7 @@ async def run_stage(
     summary["partial"] = partial
     summary["slices"] = sorted(slices) if slices else None
     summary["experiment"] = experiment
+    summary["clarify"] = bool(getattr(system, "clarify", False))
 
     destination = results_dir(
         stage, provider.name, partial=partial, experiment=experiment, slices=slices
@@ -478,6 +489,11 @@ def main(argv: list[str] | None = None) -> int:
         default=None,
         help="write under eval/runs/experiments/<name>/ instead of the canonical track",
     )
+    parser.add_argument(
+        "--clarify",
+        action="store_true",
+        help="apply the clarification rule whatever the shipped per-provider setting",
+    )
     args = parser.parse_args(argv)
     slices = [s.strip() for s in args.slices.split(",") if s.strip()] if args.slices else None
     return asyncio.run(
@@ -490,6 +506,7 @@ def main(argv: list[str] | None = None) -> int:
             wait_for_budget=args.wait_for_budget,
             slices=slices,
             experiment=args.experiment,
+            clarify=args.clarify,
         )
     )
 
