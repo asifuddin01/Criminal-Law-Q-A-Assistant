@@ -59,6 +59,17 @@ def test_a_provider_gets_the_rule_only_if_it_is_listed(monkeypatch):
     assert rag.clarifies("ollama") is False
 
 
+def test_the_rule_ships_for_the_hosted_model_and_not_the_local_one():
+    """Each side of this is a measured result, not a preference.
+
+    Hosted: passed its pre-registered criteria on all 101 questions. Local: failed
+    the same criteria, declining questions the extracts plainly answer. Adding the
+    local model here would ship a change that was measured to make it worse.
+    """
+    assert rag.clarifies("groq") is True
+    assert rag.clarifies("ollama") is False
+
+
 def test_the_rules_example_is_not_a_question_it_is_scored_on():
     """An example lifted from the dataset would teach the prompt its own test."""
     lines = GOLD.read_text(encoding="utf-8").splitlines()

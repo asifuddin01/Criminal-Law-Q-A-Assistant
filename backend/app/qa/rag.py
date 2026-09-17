@@ -97,9 +97,12 @@ CLARIFYING_PROMPT = SYSTEM_PROMPT.replace(VAGUE_QUESTION_RULE, CLARIFICATION_RUL
 if CLARIFYING_PROMPT == SYSTEM_PROMPT:
     raise RuntimeError("the vague-question rule was not found in SYSTEM_PROMPT")
 
-# Providers that get the clarification rule. Empty until a full-dataset run shows it
-# helps without making that provider decline answerable questions.
-CLARIFYING_PROVIDERS: frozenset[str] = frozenset()
+# Providers that get the clarification rule, each on the evidence of a full-dataset
+# run against criteria committed before it. The hosted model, 2026-09-17: ambiguous
+# questions declined 1 -> 6 of 9, answerable refusals 4 -> 4 of 77, answer hit rate
+# 83.1% -> 83.1%. The local model is deliberately absent — on it the rule failed the
+# same criteria, turning into refusals of questions the corpus answers.
+CLARIFYING_PROVIDERS: frozenset[str] = frozenset({"groq"})
 
 
 def clarifies(provider_name: str) -> bool:
