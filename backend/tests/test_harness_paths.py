@@ -36,6 +36,31 @@ def test_partial_runs_stay_separated_per_provider_too():
     assert "scratch" in results_dir(3, "ollama", partial=True).parts
 
 
+def test_an_experiment_never_lands_on_the_canonical_track():
+    """A variant run — the same stage under a changed prompt — must not replace
+    the result every document cites. The report reads stage-* at the top level;
+    an experiment goes somewhere it never looks."""
+    run = results_dir(4, "ollama", experiment="clarification/after")
+
+    assert run != results_dir(4, "ollama")
+    assert run.parts[-4:] == ("experiments", "clarification", "after", "stage-4-ollama")
+
+
+def test_a_slice_run_is_named_for_its_slices_and_quarantined_without_an_experiment():
+    sliced = results_dir(4, "groq", partial=True, slices=["unanswerable", "ambiguous"])
+
+    assert "scratch" in sliced.parts
+    assert sliced.name == "stage-4-ambiguous-unanswerable"
+
+
+def test_an_experiment_name_cannot_escape_the_runs_directory():
+    import pytest
+
+    for name in ("../stage-4", "a/../../b", ""):
+        with pytest.raises(ValueError):
+            results_dir(4, "ollama", experiment=name)
+
+
 def test_daily_limit_is_told_apart_from_per_minute_limit():
     """They call for opposite responses: a per-minute limit is waited out inside a
     run, a per-day one cannot be."""

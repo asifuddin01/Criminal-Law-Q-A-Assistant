@@ -959,3 +959,61 @@ The two tracks stay in separate result directories and are never plotted on one 
 **Next step.** A relevance floor, for the out-of-scope regression recorded on 2026-09-11; and
 act-aware ranking, for the stage 4 precision trade above. The ambiguous slice needs a
 clarification behaviour rather than better retrieval.
+
+### 2026-09-17 — Asking instead of guessing: a clarification rule for ambiguous questions
+
+**Objective.** Handle ambiguous questions properly, which the brief lists as a core
+requirement and which this system does badly. At stage 4 the hosted model declines 1 of 9
+ambiguous questions and the local model 2. The worst case is not a refusal that should have
+happened; it is the answer that replaced it. Asked *"Can I get bail?"*, the hosted model
+answered **"No"**, grounded in Penal Code section 130 — aiding a prisoner's escape — because
+that is an offence retrieval happened to return. A reader would be told they cannot get bail
+on the strength of an offence they never mentioned.
+
+The prompt already says *"If the question is too vague to answer without knowing which offence
+or proceeding is meant, say what you would need to know instead of guessing."* Both models
+ignore it. The diagnosis: retrieval returns extracts for every question, the rule does not say
+that the presence of an extract proves nothing about what the user meant, and the rule does
+not say what to *do* in the output schema.
+
+**Hypothesis — recorded and committed before either run started.** Replacing that rule with
+one that names the failure and the action will raise the ambiguous slice's refusal accuracy
+without making the system decline answerable questions. The replacement, verbatim:
+
+> If the question does not say which offence, proceeding, court or stage it is about, do not
+> pick one for the user. Set "refused" to true and use "answer" to ask what you would need to
+> know, naming the possibilities the extracts show. Extracts are retrieved for every
+> question, so an offence or section appearing in them is never evidence of which one the
+> user meant: asked "will the police charge me?", answering from whatever offence the
+> extracts mention is a guess presented as law.
+
+Pass criteria, fixed now:
+
+- **H1.** Ambiguous-slice refusal accuracy rises by at least 3 of 9 questions over the
+  control.
+- **H2, the risk.** Refusals on answerable questions rise by no more than 4 of 77, and answer
+  hit rate falls by no more than 3 points.
+- **Adopt** only if H1 and H2 both hold on the local model and the hosted probe moves the
+  same way — ambiguous declines up, no new refusals among its answerable questions.
+
+**Configuration.** Everything identical to shipped stage 4 except that one rule: the
+`legal_aware_schedule` index, the offence lookup, k = 8, 101 questions.
+
+- *Control:* local stage 4 on the current prompt —
+  `--stage 4 --provider ollama --experiment clarification/control`. The committed
+  `stage-4-ollama` predates the short-quotation rule, so it is not the right baseline, and
+  this experiment measures its own.
+- *Treatment:* the same run with the rule replaced —
+  `--experiment clarification/treatment`.
+- *Hosted probe:* the treatment on `gpt-oss-120b` for the ambiguous slice and the first 20
+  direct lookups, compared with the committed hosted stage 4 answers for those questions,
+  which were produced under the current prompt and differ only in the rule.
+
+**Limits stated in advance.** Nine questions is a small slice, and there is no held-out
+ambiguous set. The rule was written knowing those nine exist, but it quotes none of them: its
+example was checked against the gold set and appears nowhere in it, because an example taken
+from the dataset would teach the prompt the test it is scored on. A pass is evidence of
+direction, not a calibrated rate. Whatever the aggregate says, the *"Can I get bail?"* answer
+is read by hand.
+
+*Results are appended below once the runs complete.*

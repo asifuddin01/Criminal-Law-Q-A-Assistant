@@ -128,7 +128,12 @@ def _slug(text: str) -> str:
 
 
 def results_dir(
-    stage: int, provider_name: str, *, partial: bool = False
+    stage: int,
+    provider_name: str,
+    *,
+    partial: bool = False,
+    experiment: str | None = None,
+    slices: list[str] | None = None,
 ) -> pathlib.Path:
     """Where a run's results belong.
 
@@ -139,10 +144,23 @@ def results_dir(
     A partial run — anything with --limit — goes to scratch, which is gitignored. A
     three-question smoke test overwrote a complete 95-question result set once; git
     had it, but nothing in the pipeline should depend on that.
+
+    An experiment — a variant run against a stage, to test one change — goes under
+    `experiments/<name>/`. Nothing that reads the canonical results reads there: the
+    report and `rescore --all` take `stage-*` at the top level only. A variant that
+    landed in `stage-4-ollama` would silently replace the result every document
+    cites with one produced under a different prompt.
     """
     leaf = f"stage-{stage}"
     if provider_name != "groq":
         leaf += f"-{_slug(provider_name)}"
+    if slices:
+        leaf += "-" + "-".join(sorted(_slug(s) for s in slices))
+    if experiment is not None:
+        parts = pathlib.PurePosixPath(experiment).parts
+        if not parts or any(p in ("", ".", "..") or p.startswith("/") for p in parts):
+            raise ValueError(f"not a usable experiment name: {experiment!r}")
+        return RUNS_DIR.joinpath("experiments", *parts, leaf)
     if partial:
         return RUNS_DIR / "scratch" / leaf
     return RUNS_DIR / leaf
@@ -204,6 +222,8 @@ async def run_stage(
     use_cache: bool,
     provider_name: str | None = None,
     wait_for_budget: bool = False,
+    slices: list[str] | None = None,
+    experiment: str | None = None,
 ) -> int:
     if stage not in STAGES:
         print(f"stage {stage} is not implemented; available: {sorted(STAGES)}")
@@ -229,8 +249,21 @@ async def run_stage(
     entries = parse_schedule(schedule_path()) if schedule_path().exists() else []
 
     questions = load_gold()
+    if slices:
+        known = {q.slice for q in questions}
+        unknown = sorted(set(slices) - known)
+        if unknown:
+            print(f"unknown slice(s): {', '.join(unknown)}; known: {', '.join(sorted(known))}")
+            return 2
+        questions = [q for q in questions if q.slice in slices]
     if limit:
         questions = questions[:limit]
+    partial = bool(limit) or bool(slices)
+    try:
+        results_dir(stage, "groq", partial=partial, experiment=experiment, slices=slices)
+    except ValueError as exc:
+        print(exc)
+        return 2
 
     provider = get_provider(provider_name)
     name, description, strategy, with_lookup = STAGES[stage]
@@ -312,9 +345,13 @@ async def run_stage(
     summary["elapsed_seconds"] = round(elapsed, 1)
     summary["cache_hits"] = cache_hits
     summary["dataset_questions"] = len(load_gold())
-    summary["partial"] = bool(limit)
+    summary["partial"] = partial
+    summary["slices"] = sorted(slices) if slices else None
+    summary["experiment"] = experiment
 
-    destination = results_dir(stage, provider.name, partial=bool(limit))
+    destination = results_dir(
+        stage, provider.name, partial=partial, experiment=experiment, slices=slices
+    )
     destination.mkdir(parents=True, exist_ok=True)
     (destination / "summary.json").write_text(
         json.dumps(summary, indent=2, ensure_ascii=False), encoding="utf-8"
@@ -351,10 +388,15 @@ async def run_stage(
 
     _report(summary)
     print(f"\nwritten to {destination.relative_to(REPO_ROOT)}/")
-    if limit:
+    if experiment is not None:
         print(
-            f"partial run ({limit} of {len(load_gold())} questions) — written to "
-            "scratch, which is not committed and is not read by the report"
+            f"experiment run ({len(questions)} of {len(load_gold())} questions) — "
+            "written under experiments/, which the report and rescore --all do not read"
+        )
+    elif partial:
+        print(
+            f"partial run ({len(questions)} of {len(load_gold())} questions) — written "
+            "to scratch, which is not committed and is not read by the report"
         )
     return 0
 
@@ -426,7 +468,18 @@ def main(argv: list[str] | None = None) -> int:
         default=None,
         help="run the whole stage on this provider instead of the configured one",
     )
+    parser.add_argument(
+        "--slices",
+        default=None,
+        help="comma-separated slices to run (e.g. ambiguous,unanswerable); a partial run",
+    )
+    parser.add_argument(
+        "--experiment",
+        default=None,
+        help="write under eval/runs/experiments/<name>/ instead of the canonical track",
+    )
     args = parser.parse_args(argv)
+    slices = [s.strip() for s in args.slices.split(",") if s.strip()] if args.slices else None
     return asyncio.run(
         run_stage(
             args.stage,
@@ -435,6 +488,8 @@ def main(argv: list[str] | None = None) -> int:
             use_cache=not args.no_cache,
             provider_name=args.provider,
             wait_for_budget=args.wait_for_budget,
+            slices=slices,
+            experiment=args.experiment,
         )
     )
 
