@@ -49,7 +49,7 @@ Everything the brief required, including all three optional inputs.
 | Q&A over a Bangladeshi legal corpus | CrPC 1898, its Schedule II, and the Penal Code 1860 |
 | Answers grounded in retrieved text | Nothing is answered without retrieval; stage 1 exists to show the difference |
 | Section-level citations | With verbatim excerpts, each checked against the source before display |
-| Handle ambiguous and unsupported questions | Unsupported: declined 14 of 15 at stage 4 on the hosted model. **Ambiguous: weak by default** — see [Limitations](#limitations) |
+| Handle ambiguous and unsupported questions | Hosted model as shipped, stage 4: 15 of 15 unsupported questions declined, and 6 of 9 ambiguous ones answered with a question asking what was meant. Weaker on the local model — see [Limitations](#limitations) |
 | Evaluation | 101 questions, eight runs — four stages on each model — one scorer over all of them |
 | Documentation of approach | This file, [EXPERIMENTS.md](EXPERIMENTS.md), 12 [ADRs](docs/adr/), [AI_USAGE.md](AI_USAGE.md) |
 | *Optional:* image input | tesseract OCR, English + Bengali |
@@ -449,24 +449,27 @@ less readily than the local model when it should. The prompt is not identical ac
 tracks — the local sweep predates the rule asking for short quotations — so the gap is the
 model and that rule together. Costs, the per-slice breakdown and the hosted model's own
 weakness (quotations elided past the point of being evidence) are in
-[EXPERIMENTS.md](EXPERIMENTS.md#hosted-stages-3-and-4).
+[EXPERIMENTS.md](EXPERIMENTS.md#hosted-stages-3-and-4). As shipped, the hosted model also carries
+a clarification rule for ambiguous questions, measured at stage 4 at 77.5% citation precision,
+an unchanged 83.1% answer hit rate and 93.1% refusal accuracy; the committed stage 3 and 4
+figures above predate it.
 
 ## Limitations
 
 Stated now rather than discovered later.
 
-**Ambiguous questions are handled badly by default.** A question that does not say which
-offence or proceeding it means — *"Can I get bail?"* — should be answered with a question. By
-default it is answered from whichever offence retrieval happened to return: the hosted model
-told a reader **"No"**, on the strength of aiding a prisoner's escape, an offence they never
-mentioned. At stage 4 the hosted model declines 1 of 9 such questions, and the local model on the current
-prompt also 1 of 9. A rule
-telling the model to ask instead was tested against criteria committed before the runs (see the
-2026-09-17 entry in [EXPERIMENTS.md](EXPERIMENTS.md)). On the hosted model it worked — 6 of 9,
-with real clarifying questions and no new refusals among 20 direct lookups. On the local model
-it failed, becoming refusals of questions the corpus plainly answers. So it is applied per
-model, and to none until a full-dataset run on the hosted model confirms it does not make that
-model decline answerable questions.
+**Ambiguous questions: the hosted model asks, the local model does not.** A question that does
+not say which offence or proceeding it means — *"Can I get bail?"* — should be answered with a
+question. Left to itself, the hosted model answered it from whichever offence retrieval
+returned, and told a reader **"No"** on the strength of aiding a prisoner's escape. A rule
+telling the model to ask instead was tested against criteria committed before the runs (the
+2026-09-17 entry in [EXPERIMENTS.md](EXPERIMENTS.md)) and ships for the hosted model: at stage 4
+it now asks on 6 of 9 ambiguous questions where it asked on 1, without refusing more answerable
+ones. The local model does not get the rule — on it the same sentence became refusals of
+questions the corpus plainly answers — and it declines 1 of 9. Three ambiguous questions still
+get an answer from the hosted model. And the rule appears to push yes-or-no answers toward the
+negative: asked in Bangla whether bail is mandatory for a bailable offence, the hosted model now
+answers "No", which is wrong. Nothing reported here catches that.
 
 **A refusal shows the model's own reason, and that reason is not checked.** When the model
 declines, the reader sees why in its words — on the hosted model, usually the question they
